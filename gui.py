@@ -4,33 +4,102 @@ from tkinter import ttk, messagebox
 from datetime import datetime
 from PIL import Image, ImageTk  # Usado para cargar imágenes JPG/PNG
 
-def mostrar_pestaña(frame):
-    # Ocultar todos los frames
-    for f in frames:
-        f.pack_forget()  # Esconde todos los frames
-    # Mostrar el frame seleccionado
-    frame.pack(fill="both", expand=True)
-
 root = tk.Tk()
 root.title("Sistema de Inventario")
 root.geometry("1340x630")
 root.configure(bg="#232323")
 root.resizable(False, False)
 
+conexion = sqlite3.connect("productos.db")
+cursor = conexion.cursor()
+
 # Crear los frames (simulando pestañas)
-ventana = tk.Frame(root, bg="#232323")  # Pestaña 1
-ventana2 = tk.Frame(root, bg="#32CD32")  # Pestaña 2
-ventana3 = tk.Frame(root, bg="#1E90FF")  # Pestaña 3
+main_page = tk.Frame(root, bg="#232323")  # Pestaña 1
+clientes_page = tk.Frame(root, bg="#32CD32")  # Pestaña 2
+productos_page = tk.Frame(root, bg="#1E90FF")  # Pestaña 3
+transac_page = tk.Frame(root, bg="#BEDFAA")  # Pestaña 4
+reports_page = tk.Frame(root, bg="#AAAAAA")  # Pestaña 5
 
-# Agregar contenido a los frames
-label1 = tk.Label(ventana, text="Contenido de la Pestaña 1", font=("Arial", 20), bg="#FF6347")
-label1.pack(pady=20)
+frames = [main_page, clientes_page, productos_page, transac_page, reports_page]
 
-label2 = tk.Label(ventana2, text="Contenido de la Pestaña 2", font=("Arial", 20), bg="#32CD32")
+# Diccionario para asociar pestañas con imágenes y texto
+tabs = {
+    "dashboard": {
+        "frame": main_page,
+        "image_tag": "dashboard_img",  # Identificador de la imagen
+        "text_tag": "dashboard_text",  # Identificador del texto
+        "image_default": "Img/Dash-Default.png",
+        "image_active": "Img/Dash-Active.png",
+    },
+    "personas": {
+        "frame": clientes_page,
+        "image_tag": "personas_img",
+        "text_tag": "personas_text",
+        "image_default": "Img/People-Default.png",
+        "image_active": "Img/People-Active.png",
+    },
+    "productos": {
+        "frame": productos_page,
+        "image_tag": "productos_img",
+        "text_tag": "productos_text",
+        "image_default": "Img/Products-Default.png",
+        "image_active": "Img/Products-Active.png",
+    },
+    "transacciones": {
+        "frame": transac_page,
+        "image_tag": "transac_img",
+        "text_tag": "transac_text",
+        "image_default": "Img/Transac-Default.png",
+        "image_active": "Img/Transac-Active.png",
+    },
+    "reportes": {
+        "frame": reports_page,
+        "image_tag": "report_img",
+        "text_tag": "report_text",
+        "image_default": "Img/Report-Default.png",
+        "image_active": "Img/Report-Active.png",
+    },
+}
+
+def mostrar_pestaña(selected_tab):
+    # Ocultar todos los frames
+    for tab in tabs.values():
+        tab["frame"].pack_forget()
+
+    # Mostrar el frame seleccionado
+    tabs[selected_tab]["frame"].pack(fill="both", expand=True)
+
+    # Actualizar imágenes y texto
+    for tab_name, tab_info in tabs.items():
+        if tab_name == selected_tab:
+            # Cambiar a la imagen activa
+            active_image = ImageTk.PhotoImage(Image.open(tab_info["image_active"]))
+            canvas2.itemconfig(tab_info["image_tag"], image=active_image)
+            canvas2.itemconfig(tab_info["text_tag"], fill="#1F68A3")  # Texto activo
+            tabs[tab_name]["active_image"] = active_image  # Mantener referencia
+        else:
+            # Cambiar a la imagen por defecto
+            default_image = ImageTk.PhotoImage(Image.open(tab_info["image_default"]))
+            canvas2.itemconfig(tab_info["image_tag"], image=default_image)
+            canvas2.itemconfig(tab_info["text_tag"], fill="white")  # Texto inactivo
+            tabs[tab_name]["default_image"] = default_image  # Mantener referencia
+
+
+label2 = tk.Label(clientes_page, text="Contenido de la Pestaña 2", font=("Arial", 20), bg="#32CD32")
 label2.pack(pady=20)
 
-label3 = tk.Label(ventana3, text="Contenido de la Pestaña 3", font=("Arial", 20), bg="#1E90FF")
+label3 = tk.Label(productos_page, text="Contenido de la Pestaña 3", font=("Arial", 20), bg="#1E90FF")
 label3.pack(pady=20)
+
+def validar_numero(event, campo, label_error):
+    """Valida que solo se ingresen números en el campo."""
+    entrada = campo.get()
+    if not entrada.isdigit():
+        campo.config(bg="#FFCCCC")  # Fondo rojo si no es válido
+        label_error.config(text="Solo se permiten números.", fg="red")
+    else:
+        campo.config(bg="#333538")  # Fondo normal si es válido
+        label_error.config(text="")  # Limpia el mensaje de error
 
 def get_clientes():
     try:
@@ -46,13 +115,13 @@ def get_clientes():
         conteo_clientes = resultado[0]
 
         # Actualizar el texto del canvas
-        canvas4.itemconfig(texto_canvas, text=f"Clientes: {conteo_clientes}")
+        client_btn.itemconfig(texto_canvas, text=f"{conteo_clientes}")
 
         # Cerrar conexión
         conn.close()
     except sqlite3.Error as e:
         print(f"Error al conectar a la base de datos: {e}")
-        canvas4.itemconfig(texto_canvas, text="Error al cargar datos")
+        client_btn.itemconfig(texto_canvas, text="Error al cargar datos")
 
 def get_proveedor():
     try:
@@ -68,13 +137,13 @@ def get_proveedor():
         conteo_proveedor = resultado[0]
 
         # Actualizar el texto del canvas
-        canvas5.itemconfig(texto_canvas, text=f"Proveedor: {conteo_proveedor}")
+        proveedores_btn.itemconfig(texto_canvas, text=f"{conteo_proveedor}")
 
         # Cerrar conexión
         conn.close()
     except sqlite3.Error as e:
         print(f"Error al conectar a la base de datos: {e}")
-        canvas5.itemconfig(texto_canvas, text="Error al cargar datos")
+        proveedores_btn.itemconfig(texto_canvas, text="Error al cargar datos")
 
 def get_productos():
     try:
@@ -90,13 +159,13 @@ def get_productos():
         conteo_productos = resultado[0]
 
         # Actualizar el texto del canvas
-        canvas6.itemconfig(texto_canvas, text=f"Productos: {conteo_productos}")
+        products_btn.itemconfig(texto_canvas, text=f"{conteo_productos}")
 
         # Cerrar conexión
         conn.close()
     except sqlite3.Error as e:
         print(f"Error al conectar a la base de datos: {e}")
-        canvas6.itemconfig(texto_canvas, text="Error al cargar datos")
+        products_btn.itemconfig(texto_canvas, text="Error al cargar datos")
 
 def get_compras():
     try:
@@ -112,13 +181,13 @@ def get_compras():
         conteo_compras = resultado[0]
 
         # Actualizar el texto del canvas
-        canvas8.itemconfig(texto_canvas, text=f"Compras: {conteo_compras}")
+        shop_btn.itemconfig(texto_canvas, text=f"{conteo_compras}")
 
         # Cerrar conexión
         conn.close()
     except sqlite3.Error as e:
         print(f"Error al conectar a la base de datos: {e}")
-        canvas8.itemconfig(texto_canvas, text="Error al cargar datos")
+        shop_btn.itemconfig(texto_canvas, text="Error al cargar datos")
 
 def get_ventas():
     try:
@@ -134,13 +203,13 @@ def get_ventas():
         conteo_ventas = resultado[0]
 
         # Actualizar el texto del canvas
-        canvas9.itemconfig(texto_canvas, text=f"Ventas: {conteo_ventas}")
+        sells_btn.itemconfig(texto_canvas, text=f"{conteo_ventas}")
 
         # Cerrar conexión
         conn.close()
     except sqlite3.Error as e:
         print(f"Error al conectar a la base de datos: {e}")
-        canvas9.itemconfig(texto_canvas, text="Error al cargar datos")
+        sells_btn.itemconfig(texto_canvas, text="Error al cargar datos")
 
 def get_transacciones():
     try:
@@ -156,13 +225,13 @@ def get_transacciones():
         conteo_transacciones = resultado[0]
 
         # Actualizar el texto del canvas
-        canvas10.itemconfig(texto_canvas, text=f"Transacciones: {conteo_transacciones}")
+        transacciones_btn.itemconfig(texto_canvas, text=f" {conteo_transacciones}")
 
         # Cerrar conexión
         conn.close()
     except sqlite3.Error as e:
         print(f"Error al conectar a la base de datos: {e}")
-        canvas10.itemconfig(texto_canvas, text="Error al cargar datos")
+        transacciones_btn.itemconfig(texto_canvas, text="Error al cargar datos")
 
 def get_utilidad():
     try:
@@ -178,13 +247,13 @@ def get_utilidad():
         conteo_utilidad = resultado[0]
 
         # Actualizar el texto del canvas
-        canvas7.itemconfig(texto_canvas, text=f"Utilidad: {conteo_utilidad}")
+        utility_btn.itemconfig(texto_canvas, text=f"${conteo_utilidad}")
 
         # Cerrar conexión
         conn.close()
     except sqlite3.Error as e:
         print(f"Error al conectar a la base de datos: {e}")
-        canvas7.itemconfig(texto_canvas, text="Error al cargar datos")
+        utility_btn.itemconfig(texto_canvas, text="Error al cargar datos")
 
 def actualizar_reloj(canvas, texto_id):
     # Obtener fecha y hora actuales
@@ -225,236 +294,691 @@ def on_rectangle_click1(event):
     if 0 <= event.x <= 280 and 0 <= event.y <= 100:
         on_click()
 
+def agregar_personas(campos_compras):
+    try:
+        # Obtener valores desde los campos_compras
+        Rut = campos_compras['rut'].get()
+        Nombre = campos_compras['nombre'].get()
+        Apellido = campos_compras['apellido'].get()
+        Rol = campos_compras['rol'].get()
+
+        # Insertar en la base de datos
+        cursor.execute("INSERT INTO Persona (Rut_Persona, Nombre, Apellido, Rol) VALUES (?, ?, ?, ?)",
+                       (Rut, Nombre, Apellido, Rol))
+        conexion.commit()
+
+        messagebox.showinfo("Éxito", "Persona agregado correctamente.")
+        main_page.after(100, get_clientes)  # Ejecuta la función 100ms después de iniciar la main_page
+        main_page.after(100, get_proveedor)  # Ejecuta la función 100ms después de iniciar la main_page
+        main_page.after(100, get_productos)  # Ejecuta la función 100ms después de iniciar la main_page
+        main_page.after(100, get_compras)  # Ejecuta la función 100ms después de iniciar la main_page
+        main_page.after(100, get_ventas)  # Ejecuta la función 100ms después de iniciar la main_page
+        main_page.after(100, get_transacciones)  # Ejecuta la función 100ms después de iniciar la main_page
+        main_page.after(100, get_utilidad)  # Ejecuta la función 100ms después de iniciar la main_page
+
+    except Exception as e:
+        messagebox.showerror("Error", f"No se pudo agregar a la persona: {e}")
+
+def abrir_ventana_personas_proveedor():
+    ventana_personas = tk.Toplevel(root)
+    ventana_personas.title("Agregar Proveedor")
+    ventana_personas.geometry("400x300")
+    ventana_personas.configure(bg="#2A2B2A")
+
+    # Diccionario para almacenar los campos_compras de entrada
+    campos_compras = {}
+
+    # Etiqueta y campo para Cantidad
+
+    # Entradas para agregar producto
+    frame_entrada = tk.Frame(ventana_personas)
+    frame_entrada.pack(pady=10)
+    frame_entrada.configure(bg="#2A2B2A")
+
+    tk.Label(frame_entrada, text="Rut:", font=('Arial', 12), bg="#2A2B2A", fg="white").grid(row=0, column=0, padx=5, pady=5)
+    campos_compras['rut'] = tk.Entry(frame_entrada, width=22, font=('Arial', 12), bg="#333538", fg="white")
+    campos_compras['rut'].grid(row=0, column=1, padx=5, pady=5)
+
+    tk.Label(frame_entrada, text="Nombre:", font=('Arial', 12), bg="#2A2B2A", fg="white").grid(row=1, column=0, padx=5, pady=5)
+    campos_compras['nombre'] = tk.Entry(frame_entrada, width=22, font=('Arial', 12), bg="#333538", fg="white")
+    campos_compras['nombre'].grid(row=1, column=1, padx=5, pady=5)
+
+    tk.Label(frame_entrada, text="Apellido:", font=('Arial', 12), bg="#2A2B2A", fg="white").grid(row=2, column=0, padx=5, pady=5)
+    campos_compras['apellido'] = tk.Entry(frame_entrada, width=22, font=('Arial', 12), bg="#333538", fg="white")
+    campos_compras['apellido'].grid(row=2, column=1, padx=5, pady=5)
+
+    tk.Label(frame_entrada, text="Rol:", font=('Arial', 12), bg="#2A2B2A", fg="white").grid(row=3, column=0, padx=5, pady=5)
+    campos_compras['rol'] = tk.Entry(frame_entrada, width=22, font=('Arial', 12), bg="#333538", fg="white")
+    campos_compras['rol'].insert(0, "Proveedor")  # Valor por defecto
+    campos_compras['rol'].config(state=tk.DISABLED, disabledbackground="#AAAAAA", disabledforeground="#7A7A7A")
+    campos_compras['rol'].grid(row=3, column=1, padx=5, pady=5)
+
+    # Botón para agregar producto
+    btn_agregar = tk.Button(frame_entrada, text="Agregar Proveedor", font=('Arial', 12), bg="#1F68A3", fg="white", command=lambda: agregar_personas(campos_compras))
+    btn_agregar.grid(row=4, column=0, columnspan=2, pady=(50,0))
+
+    # Botón para cerrar ventana
+    btn_cerrar = tk.Button(ventana_personas, text="Cerrar", font=('Arial', 12), bg="#1F68A3", fg="white", command=ventana_personas.destroy)
+    btn_cerrar.pack(pady=0)
+
+def abrir_ventana_personas_cliente():
+    ventana_personas = tk.Toplevel(root)
+    ventana_personas.title("Agregar Cliente")
+    ventana_personas.geometry("400x300")
+    ventana_personas.configure(bg="#2A2B2A")
+
+    # Diccionario para almacenar los campos_compras de entrada
+    campos_compras = {}
+
+    # Etiqueta y campo para Cantidad
+
+    # Entradas para agregar producto
+    frame_entrada = tk.Frame(ventana_personas)
+    frame_entrada.pack(pady=10)
+    frame_entrada.configure(bg="#2A2B2A")
+
+    tk.Label(frame_entrada, text="Rut:", font=('Arial', 12), bg="#2A2B2A", fg="white").grid(row=0, column=0, padx=5, pady=5)
+    campos_compras['rut'] = tk.Entry(frame_entrada, width=22, font=('Arial', 12), bg="#333538", fg="white")
+    campos_compras['rut'].grid(row=0, column=1, padx=5, pady=5)
+
+    tk.Label(frame_entrada, text="Nombre:", font=('Arial', 12), bg="#2A2B2A", fg="white").grid(row=1, column=0, padx=5, pady=5)
+    campos_compras['nombre'] = tk.Entry(frame_entrada, width=22, font=('Arial', 12), bg="#333538", fg="white")
+    campos_compras['nombre'].grid(row=1, column=1, padx=5, pady=5)
+
+    tk.Label(frame_entrada, text="Apellido:", font=('Arial', 12), bg="#2A2B2A", fg="white").grid(row=2, column=0, padx=5, pady=5)
+    campos_compras['apellido'] = tk.Entry(frame_entrada, width=22, font=('Arial', 12), bg="#333538", fg="white")
+    campos_compras['apellido'].grid(row=2, column=1, padx=5, pady=5)
+
+    tk.Label(frame_entrada, text="Rol:", font=('Arial', 12), bg="#2A2B2A", fg="white").grid(row=3, column=0, padx=5, pady=5)
+    campos_compras['rol'] = tk.Entry(frame_entrada, width=22, font=('Arial', 12), bg="#333538", fg="white")
+    campos_compras['rol'].insert(0, "Cliente")  # Valor por defecto
+    campos_compras['rol'].config(state=tk.DISABLED, disabledbackground="#AAAAAA", disabledforeground="#7A7A7A")
+    campos_compras['rol'].grid(row=3, column=1, padx=5, pady=5)
+
+    # Botón para agregar producto
+    btn_agregar = tk.Button(frame_entrada, text="Agregar Cliente", font=('Arial', 12), bg="#1F68A3", fg="white", command=lambda: agregar_personas(campos_compras))
+    btn_agregar.grid(row=4, column=0, columnspan=2, pady=(50,0))
+
+    # Botón para cerrar ventana
+    btn_cerrar = tk.Button(ventana_personas, text="Cerrar", font=('Arial', 12), bg="#1F68A3", fg="white", command=ventana_personas.destroy)
+    btn_cerrar.pack(pady=0)
+
+def agregar_transaccion_compras(campos_compras, productos_dict, proveedores_dict):
+    try:
+        # Obtener valores desde los campos_compras
+        producto_nombre = campos_compras['producto'].get()
+        cantidad = int(campos_compras['cantidad'].get())
+        accion = campos_compras['accion'].get()
+        precio = float(campos_compras['precio'].get())
+        proveedor_nombre = campos_compras['proveedor'].get()
+
+        # Validar selección
+        if producto_nombre not in productos_dict or proveedor_nombre not in proveedores_dict:
+            raise ValueError("Debe seleccionar un producto y un proveedor válidos.")
+
+        # Obtener IDs correspondientes
+        producto_id = productos_dict[producto_nombre]
+        proveedor_rut = proveedores_dict[proveedor_nombre]
+
+        # Insertar en la base de datos
+        conn = sqlite3.connect('productos.db')
+        cursor = conn.cursor()
+        cursor.execute("""
+            INSERT INTO Transaccion (Persona_ID, Producto_ID, Fecha, Accion, Cantidad, Precio)
+            VALUES (?, ?, DATE('now'), ?, ?, ?)
+        """, (proveedor_rut, producto_id, accion, cantidad, precio))
+        conn.commit()
+        conn.close()
+        main_page.after(100, get_clientes)  # Ejecuta la función 100ms después de iniciar la main_page
+        main_page.after(100, get_proveedor)  # Ejecuta la función 100ms después de iniciar la main_page
+        main_page.after(100, get_productos)  # Ejecuta la función 100ms después de iniciar la main_page
+        main_page.after(100, get_compras)  # Ejecuta la función 100ms después de iniciar la main_page
+        main_page.after(100, get_ventas)  # Ejecuta la función 100ms después de iniciar la main_page
+        main_page.after(100, get_transacciones)  # Ejecuta la función 100ms después de iniciar la main_page
+        main_page.after(100, get_utilidad)  # Ejecuta la función 100ms después de iniciar la main_page
+        messagebox.showinfo("Éxito", "Compra registrada exitosamente.")
+    except Exception as e:
+        messagebox.showerror("Error", f"No se pudo registrar la compra: {e}")
+
+def agregar_transaccion_ventas(campos_compras, productos_dict, clientes_dict):
+    try:
+        # Obtener valores desde los campos_compras
+        producto_nombre = campos_compras['producto'].get()
+        cantidad = int(campos_compras['cantidad'].get())
+        accion = campos_compras['accion'].get()
+        precio = float(campos_compras['precio'].get())
+        cliente_nombre = campos_compras['cliente'].get()
+
+        # Validar selección
+        if producto_nombre not in productos_dict or cliente_nombre not in clientes_dict:
+            raise ValueError("Debe seleccionar un producto y un cliente válidos.")
+
+        # Obtener IDs correspondientes
+        producto_id = productos_dict[producto_nombre]
+        cliente_rut = clientes_dict[cliente_nombre]
+
+        # Insertar en la base de datos
+        conn = sqlite3.connect('productos.db')
+        cursor = conn.cursor()
+        cursor.execute("""
+            INSERT INTO Transaccion (Persona_ID, Producto_ID, Fecha, Accion, Cantidad, Precio)
+            VALUES (?, ?, DATE('now'), ?, ?, ?)
+        """, (cliente_rut, producto_id, accion, cantidad, precio))
+        conn.commit()
+        conn.close()
+        main_page.after(100, get_clientes)  # Ejecuta la función 100ms después de iniciar la main_page
+        main_page.after(100, get_proveedor)  # Ejecuta la función 100ms después de iniciar la main_page
+        main_page.after(100, get_productos)  # Ejecuta la función 100ms después de iniciar la main_page
+        main_page.after(100, get_compras)  # Ejecuta la función 100ms después de iniciar la main_page
+        main_page.after(100, get_ventas)  # Ejecuta la función 100ms después de iniciar la main_page
+        main_page.after(100, get_transacciones)  # Ejecuta la función 100ms después de iniciar la main_page
+        main_page.after(100, get_utilidad)  # Ejecuta la función 100ms después de iniciar la main_page
+        messagebox.showinfo("Éxito", "Venta registrada exitosamente.")
+    except Exception as e:
+        messagebox.showerror("Error", f"No se pudo registrar la venta: {e}")
+
+def abrir_ventana_compras():
+    ventana_compras = tk.Toplevel(root)
+    ventana_compras.title("Registrar Compra")
+    ventana_compras.geometry("400x450")
+    ventana_compras.configure(bg="#2A2B2A")
+
+    # Diccionario para almacenar los campos_compras de entrada
+    campos_compras = {}
+
+    # Frame para las entradas
+    frame_entrada = tk.Frame(ventana_compras)
+    frame_entrada.pack(pady=10)
+    frame_entrada.configure(bg="#2A2B2A")
+
+    # Obtener productos y proveedores desde la base de datos
+    try:
+        conn = sqlite3.connect('productos.db')
+        cursor = conn.cursor()
+
+        # Obtener productos
+        cursor.execute("SELECT ID_Producto, Nombre FROM Productos")
+        productos = cursor.fetchall()
+        productos_dict = {f"{nombre}": id_producto for id_producto, nombre in productos}
+
+        # Obtener proveedores
+        cursor.execute("SELECT Rut_Persona, Nombre FROM Persona WHERE Rol = 'Proveedor'")
+        proveedores = cursor.fetchall()
+        proveedores_dict = {f"{nombre}": rut for rut, nombre in proveedores}
+
+        conn.close()
+    except sqlite3.Error as e:
+        messagebox.showerror("Error", f"No se pudo cargar los datos: {e}")
+        return
+
+    tk.Label(frame_entrada, text="Compra", font=('Arial', 20, "bold"), anchor="w", bg="#2A2B2A", fg="white").grid(row=0, column=0, padx=5, pady=5, sticky="w")
+    canvas = tk.Canvas(frame_entrada, height=5, bg='white', bd=0, highlightthickness=0)
+    canvas.grid(row=1, column=0, padx=5, pady=5, sticky="ew", columnspan=2)  # Usa columnspan para que ocupe toda la fila
+
+    # Menú desplegable para seleccionar producto
+    tk.Label(frame_entrada, text="Producto:", font=('Arial', 12), anchor="w", bg="#2A2B2A", fg="white").grid(row=2, column=0, padx=5, pady=5, sticky="w")
+    producto_seleccionado = tk.StringVar()
+    producto_seleccionado.set("Seleccionar producto")
+    campos_compras['producto'] = producto_seleccionado
+    menu_productos = tk.OptionMenu(frame_entrada, producto_seleccionado, *productos_dict.keys())
+    menu_productos.grid(row=2, column=1, padx=5, pady=5)
+
+    # Cambiar el tamaño de la fuente, el color de fondo y el color de texto del OptionMenu
+    menu_productos.config(font=('Arial', 12), bg='#333538', fg='white', width=18, anchor='w', highlightthickness=0)
+    # Modificar el color de las opciones del menú desplegable
+    menu_productos['menu'].config(font=('Arial', 12), bg='#2A2B2A', fg='white')
+    menu_productos.grid(row=2, column=1, padx=5, pady=5)
+
+    # Etiqueta y campo para Cantidad
+    tk.Label(frame_entrada, text="Cantidad [KG]:", font=('Arial', 12), bg="#2A2B2A", fg="white").grid(row=3, column=0, padx=5, pady=(10,0), sticky="w")
+    campos_compras['cantidad'] = tk.Entry(frame_entrada, width=22, font=('Arial', 12), bg="#333538", fg="white")
+    campos_compras['cantidad'].grid(row=3, column=1, padx=5, pady=(10,0))
+    
+    # Etiqueta para mensajes de error (con espacio reservado)
+    label_error_cantidad = tk.Label(frame_entrada, text="", font=('Arial', 10), bg="#2A2B2A", fg="red", height=1, anchor="w")
+    label_error_cantidad.grid(row=4, column=1, padx=5, pady=0, sticky="w")
+
+    # Vincular validación al campo "Cantidad"
+    campos_compras['cantidad'].bind("<KeyRelease>", lambda event: validar_numero(event, campos_compras['cantidad'], label_error_cantidad))
+    # Acción predefinida como "Compra" (Entry deshabilitado)
+    tk.Label(frame_entrada, text="Acción:", font=('Arial', 12), anchor="w", bg="#2A2B2A", fg="white").grid(row=5, column=0, padx=5, pady=(0,10), sticky="w")
+    campos_compras['accion'] = tk.Entry(frame_entrada, width=22, font=('Arial', 12), fg="#7A7A7A")
+    campos_compras['accion'].insert(0, "Compra")  # Valor por defecto
+    campos_compras['accion'].config(state=tk.DISABLED, disabledbackground="#AAAAAA", disabledforeground="#7A7A7A")
+    campos_compras['accion'].grid(row=5, column=1, padx=5, pady=(0,10))
+    
+    # Etiqueta y campo para Precio
+    tk.Label(frame_entrada, text="Precio [$]:", font=('Arial', 12), bg="#2A2B2A", fg="white").grid(row=6, column=0, padx=5, pady=(10,0), sticky="w")
+    campos_compras['precio'] = tk.Entry(frame_entrada, width=22, font=('Arial', 12), bg="#333538", fg="white")
+    campos_compras['precio'].grid(row=6, column=1, padx=5, pady=(10,0))
+    
+    # Etiqueta para mensajes de error (con espacio reservado)
+    label_error_precio = tk.Label(frame_entrada, text="", font=('Arial', 10), bg="#2A2B2A", fg="red", height=1, anchor="w")
+    label_error_precio.grid(row=7, column=1, padx=5, pady=0, sticky="w")
+
+    # Vincular validación al campo "Precio"
+    campos_compras['precio'].bind("<KeyRelease>", lambda event: validar_numero(event, campos_compras['precio'], label_error_precio))
+
+    # Menú desplegable para seleccionar proveedor
+    tk.Label(frame_entrada, text="Proveedor:", font=('Arial', 12), anchor="w", bg="#2A2B2A", fg="white").grid(row=8, column=0, padx=5, pady=5, sticky="w")
+    proveedor_seleccionado = tk.StringVar()
+    proveedor_seleccionado.set("Seleccionar proveedor")
+    campos_compras['proveedor'] = proveedor_seleccionado
+    menu_proveedores = tk.OptionMenu(frame_entrada, proveedor_seleccionado, *proveedores_dict.keys())
+    menu_proveedores.grid(row=8, column=1, padx=5, pady=0)
+    # Cambiar el tamaño de la fuente, el color de fondo y el color de texto del OptionMenu
+    menu_proveedores.config(font=('Arial', 12), bg='#333538', fg='white', width=18, anchor='w', highlightthickness=0)
+    # Modificar el color de las opciones del menú desplegable
+    menu_proveedores['menu'].config(font=('Arial', 12), bg='#2A2B2A', fg='white')
+    menu_proveedores.grid(row=8, column=1, padx=5, pady=0)
+
+    # Botón para agregar producto
+    btn_agregar = tk.Button(frame_entrada, text="Agregar Proveedor", font=('Arial', 12), bg="#1F68A3", fg="white", command=lambda: abrir_ventana_personas_proveedor())
+    btn_agregar.grid(row=9, column=0, columnspan=2, pady=(50,0))
+
+    # Botón para cerrar ventana
+    btn_cerrar = tk.Button(ventana_compras, text="Aceptar", font=('Arial', 12), bg="#1F68A3", fg="white", command=lambda: agregar_transaccion_compras(campos_compras, productos_dict, proveedores_dict))
+    btn_cerrar.pack()
+
+def abrir_ventana_ventas():
+    ventana_ventas = tk.Toplevel(root)
+    ventana_ventas.title("Registrar Venta")
+    ventana_ventas.geometry("400x450")
+    ventana_ventas.configure(bg="#2A2B2A")
+
+    # Diccionario para almacenar los campos_compras de entrada
+    campos_compras = {}
+
+    # Frame para las entradas
+    frame_entrada = tk.Frame(ventana_ventas)
+    frame_entrada.pack(pady=10)
+    frame_entrada.configure(bg="#2A2B2A")
+
+    # Obtener productos y clientes desde la base de datos
+    try:
+        conn = sqlite3.connect('productos.db')
+        cursor = conn.cursor()
+
+        # Obtener productos
+        cursor.execute("SELECT ID_Producto, Nombre FROM Productos")
+        productos = cursor.fetchall()
+        productos_dict = {f"{nombre}": id_producto for id_producto, nombre in productos}
+
+        # Obtener clientes
+        cursor.execute("SELECT Rut_Persona, Nombre FROM Persona WHERE Rol = 'Cliente'")
+        clientes = cursor.fetchall()
+        clientes_dict = {f"{nombre}": rut for rut, nombre in clientes}
+
+        conn.close()
+    except sqlite3.Error as e:
+        messagebox.showerror("Error", f"No se pudo cargar los datos: {e}")
+        return
+
+    tk.Label(frame_entrada, text="Ventas", font=('Arial', 20, "bold"), anchor="w", bg="#2A2B2A", fg="white").grid(row=0, column=0, padx=5, pady=5, sticky="w")
+    canvas = tk.Canvas(frame_entrada, height=5, bg='white', bd=0, highlightthickness=0)
+    canvas.grid(row=1, column=0, padx=5, pady=5, sticky="ew", columnspan=2)  # Usa columnspan para que ocupe toda la fila
+
+    # Menú desplegable para seleccionar producto
+    tk.Label(frame_entrada, text="Producto:", font=('Arial', 12), anchor="w", bg="#2A2B2A", fg="white").grid(row=2, column=0, padx=5, pady=5, sticky="w")
+    producto_seleccionado = tk.StringVar()
+    producto_seleccionado.set("Seleccionar producto")
+    campos_compras['producto'] = producto_seleccionado
+    menu_productos = tk.OptionMenu(frame_entrada, producto_seleccionado, *productos_dict.keys())
+    menu_productos.grid(row=2, column=1, padx=5, pady=5)
+
+    # Cambiar el tamaño de la fuente, el color de fondo y el color de texto del OptionMenu
+    menu_productos.config(font=('Arial', 12), bg='#333538', fg='white', width=18, anchor='w', highlightthickness=0)
+    # Modificar el color de las opciones del menú desplegable
+    menu_productos['menu'].config(font=('Arial', 12), bg='#2A2B2A', fg='white')
+    menu_productos.grid(row=2, column=1, padx=5, pady=5)
+
+    # Etiqueta y campo para Cantidad
+    tk.Label(frame_entrada, text="Cantidad [KG]:", font=('Arial', 12), bg="#2A2B2A", fg="white").grid(row=3, column=0, padx=5, pady=(10,0), sticky="w")
+    campos_compras['cantidad'] = tk.Entry(frame_entrada, width=22, font=('Arial', 12), bg="#333538", fg="white")
+    campos_compras['cantidad'].grid(row=3, column=1, padx=5, pady=(10,0))
+    
+    # Etiqueta para mensajes de error (con espacio reservado)
+    label_error_cantidad = tk.Label(frame_entrada, text="", font=('Arial', 10), bg="#2A2B2A", fg="red", height=1, anchor="w")
+    label_error_cantidad.grid(row=4, column=1, padx=5, pady=0, sticky="w")
+
+    # Vincular validación al campo "Cantidad"
+    campos_compras['cantidad'].bind("<KeyRelease>", lambda event: validar_numero(event, campos_compras['cantidad'], label_error_cantidad))
+    # Acción predefinida como "Compra" (Entry deshabilitado)
+    tk.Label(frame_entrada, text="Acción:", font=('Arial', 12), anchor="w", bg="#2A2B2A", fg="white").grid(row=5, column=0, padx=5, pady=(0,10), sticky="w")
+    campos_compras['accion'] = tk.Entry(frame_entrada, width=22, font=('Arial', 12), fg="#7A7A7A")
+    campos_compras['accion'].insert(0, "Venta")  # Valor por defecto
+    campos_compras['accion'].config(state=tk.DISABLED, disabledbackground="#AAAAAA", disabledforeground="#7A7A7A")
+    campos_compras['accion'].grid(row=5, column=1, padx=5, pady=(0,10))
+    
+    # Etiqueta y campo para Precio
+    tk.Label(frame_entrada, text="Precio [$]:", font=('Arial', 12), bg="#2A2B2A", fg="white").grid(row=6, column=0, padx=5, pady=(10,0), sticky="w")
+    campos_compras['precio'] = tk.Entry(frame_entrada, width=22, font=('Arial', 12), bg="#333538", fg="white")
+    campos_compras['precio'].grid(row=6, column=1, padx=5, pady=(10,0))
+    
+    # Etiqueta para mensajes de error (con espacio reservado)
+    label_error_precio = tk.Label(frame_entrada, text="", font=('Arial', 10), bg="#2A2B2A", fg="red", height=1, anchor="w")
+    label_error_precio.grid(row=7, column=1, padx=5, pady=0, sticky="w")
+
+    # Vincular validación al campo "Precio"
+    campos_compras['precio'].bind("<KeyRelease>", lambda event: validar_numero(event, campos_compras['precio'], label_error_precio))
+
+    # Menú desplegable para seleccionar cliente
+    tk.Label(frame_entrada, text="Cliente:", font=('Arial', 12), anchor="w", bg="#2A2B2A", fg="white").grid(row=8, column=0, padx=5, pady=5, sticky="w")
+    cliente_seleccionado = tk.StringVar()
+    cliente_seleccionado.set("Seleccionar cliente")
+    campos_compras['cliente'] = cliente_seleccionado
+    menu_clientes = tk.OptionMenu(frame_entrada, cliente_seleccionado, *clientes_dict.keys())
+    menu_clientes.grid(row=8, column=1, padx=5, pady=0)
+    # Cambiar el tamaño de la fuente, el color de fondo y el color de texto del OptionMenu
+    menu_clientes.config(font=('Arial', 12), bg='#333538', fg='white', width=18, anchor='w', highlightthickness=0)
+    # Modificar el color de las opciones del menú desplegable
+    menu_clientes['menu'].config(font=('Arial', 12), bg='#2A2B2A', fg='white')
+    menu_clientes.grid(row=8, column=1, padx=5, pady=0)
+
+    # Botón para agregar producto
+    btn_agregar = tk.Button(frame_entrada, text="Agregar Cliente", font=('Arial', 12), bg="#1F68A3", fg="white", command=lambda: abrir_ventana_personas_cliente())
+    btn_agregar.grid(row=9, column=0, columnspan=2, pady=(50,0))
+
+    # Botón para cerrar ventana
+    btn_cerrar = tk.Button(ventana_ventas, text="Aceptar", font=('Arial', 12), bg="#1F68A3", fg="white", command=lambda: agregar_transaccion_ventas(campos_compras, productos_dict, clientes_dict))
+    btn_cerrar.pack()
+
+
 # Canvas 1: Barra superior
-canvas1 = tk.Canvas(ventana, width=1340, height=70, highlightthickness=0, bg="#292B2B")
+canvas1 = tk.Canvas(root, width=1340, height=70, highlightthickness=0, bg="#292B2B")
 canvas1.place(x=0, y=0)
 canvas1.create_rectangle(0, 0, 1340, 70, fill="#292B2B", outline="#292B2B")
 # Agregar texto dentro del rectángulo
 texto = canvas1.create_text(80, 35, text="Inventario", fill="white", font=("Arial", 16, "bold"))
-image1A = Image.open("Img/Img-8.png")  # Cambia la ruta por la de tu imagen
-photo1A = ImageTk.PhotoImage(image1A)
-canvas1.create_image(170, 35, image=photo1A)
-canvas1.image = photo1A
+client_imgA = Image.open("Img/Img-8.png")  # Cambia la ruta por la de tu imagen
+client_photoA = ImageTk.PhotoImage(client_imgA)
+canvas1.create_image(170, 35, image=client_photoA)
+canvas1.image = client_photoA
 
 # Canvas 2: Panel lateral izquierdo
-canvas2 = tk.Canvas(ventana, width=300, height=560, highlightthickness=0, bg="#292B2B")
+canvas2 = tk.Canvas(root, width=300, height=560, highlightthickness=0, bg="#292B2B")
 canvas2.place(x=0, y=70)  # Colocado justo debajo del canvas1
 canvas2.create_rectangle(0, 0, 300, 560, fill="#292B2B", outline="#292B2B")
 
-image2A = Image.open("Img/Img-9.png")  # Cambia la ruta por la de tu imagen
-photo2A = ImageTk.PhotoImage(image2A)
-canvas2.create_image(150, 80, image=photo2A)
-canvas2.image = photo2A
+canvas21 = tk.Canvas(clientes_page, width=300, height=560, highlightthickness=0, bg="#292B2B")
+canvas21.place(x=0, y=70)  # Colocado justo debajo del canvas1
+canvas21.create_rectangle(0, 0, 300, 560, fill="#292B2B", outline="#292B2B")
+
+
+# Cargar la imagen
+dashboard_img_original = Image.open("Img/Dash-Active.png")  # Cambia la ruta por la de tu imagen
+dashboard_img = ImageTk.PhotoImage(dashboard_img_original)
+# Agregar la imagen al Canvas con un tag
+dashboard_image_item = canvas2.create_image(20, 220, image=dashboard_img, anchor="nw", tags=("dashboard_img","dashboard_clickable"))
+# Agregar el texto al Canvas con el mismo tag
+texto_canvas_dashboard = canvas2.create_text(70, 240, text="Dashboard", anchor="w", fill="#1F68A3", font=("Arial", 18, "bold"), tags=("dashboard_text","dashboard_clickable"))
+# Establecer cursor tipo "manito" al pasar sobre los elementos con el tag
+canvas2.tag_bind("dashboard_clickable", "<Enter>", lambda e: canvas2.config(cursor="hand2"))
+canvas2.tag_bind("dashboard_clickable", "<Leave>", lambda e: canvas2.config(cursor="hand2"))
+canvas2.tag_bind("dashboard_clickable", "<Button-1>", lambda e: mostrar_pestaña("dashboard"))
+
+# Cargar la imagen
+people_img_original = Image.open("Img/People-Default.png")  # Cambia la ruta por la de tu imagen
+people_img = ImageTk.PhotoImage(people_img_original)
+# Agregar la imagen al Canvas con un tag
+people_image_item = canvas2.create_image(20, 270, image=people_img, anchor="nw", tags=("personas_img","personas_clickable"))
+# Agregar el texto al Canvas con el mismo tag
+texto_canvas_people = canvas2.create_text(70, 290, text="Personas", anchor="w", fill="white", font=("Arial", 18, "bold"), tags=("personas_text","personas_clickable"))
+# Establecer cursor tipo "manito" al pasar sobre los elementos con el tag
+canvas2.tag_bind("personas_clickable", "<Enter>", lambda e: canvas2.config(cursor="hand2"))
+canvas2.tag_bind("personas_clickable", "<Leave>", lambda e: canvas2.config(cursor="hand2"))
+canvas2.tag_bind("personas_clickable", "<Button-1>", lambda e: mostrar_pestaña("personas"))
+
+# Cargar la imagen
+products_img_original = Image.open("Img/Products-Default.png")  # Cambia la ruta por la de tu imagen
+products_imgs = ImageTk.PhotoImage(products_img_original)
+# Agregar la imagen al Canvas con un tag
+products_image_item = canvas2.create_image(20, 320, image=products_imgs, anchor="nw", tags=("productos_img","productos_clickable"))
+# Agregar el texto al Canvas con el mismo tag
+texto_canvas_products = canvas2.create_text(70, 340, text="Productos", anchor="w", fill="white", font=("Arial", 18, "bold"), tags=("productos_text","productos_clickable"))
+# Establecer cursor tipo "manito" al pasar sobre los elementos con el tag
+canvas2.tag_bind("productos_clickable", "<Enter>", lambda e: canvas2.config(cursor="hand2"))
+canvas2.tag_bind("productos_clickable", "<Leave>", lambda e: canvas2.config(cursor="hand2"))
+canvas2.tag_bind("productos_clickable", "<Button-1>", lambda e: mostrar_pestaña("productos"))
+
+# Cargar la imagen
+transac_img_original = Image.open("Img/Transac-Default.png")  # Cambia la ruta por la de tu imagen
+transac_imgs = ImageTk.PhotoImage(transac_img_original)
+# Agregar la imagen al Canvas con un tag
+transac_image_item = canvas2.create_image(20, 370, image=transac_imgs, anchor="nw", tags=("transac_img","transacc_clickable"))
+# Agregar el texto al Canvas con el mismo tag
+texto_canvas_transac = canvas2.create_text(70, 390, text="Transacciones", anchor="w", fill="white", font=("Arial", 18, "bold"), tags=("transac_text","transacc_clickable"))
+# Establecer cursor tipo "manito" al pasar sobre los elementos con el tag
+canvas2.tag_bind("transacc_clickable", "<Enter>", lambda e: canvas2.config(cursor="hand2"))
+canvas2.tag_bind("transacc_clickable", "<Leave>", lambda e: canvas2.config(cursor="hand2"))
+canvas2.tag_bind("transacc_clickable", "<Button-1>", lambda e: mostrar_pestaña("transacciones"))
+
+# Cargar la imagen
+report_img_original = Image.open("Img/Report-Default.png")  # Cambia la ruta por la de tu imagen
+report_imgs = ImageTk.PhotoImage(report_img_original)
+# Agregar la imagen al Canvas con un tag
+report_image_item = canvas2.create_image(20, 420, image=report_imgs, anchor="nw", tags=("report_img","report_clickable"))
+# Agregar el texto al Canvas con el mismo tag
+texto_canvas_report = canvas2.create_text(70, 440, text="Reportes", anchor="w", fill="white", font=("Arial", 18, "bold"), tags=("report_text","report_clickable"))
+# Establecer cursor tipo "manito" al pasar sobre los elementos con el tag
+canvas2.tag_bind("report_clickable", "<Enter>", lambda e: canvas2.config(cursor="hand2"))
+canvas2.tag_bind("report_clickable", "<Leave>", lambda e: canvas2.config(cursor="hand2"))
+canvas2.tag_bind("report_clickable", "<Button-1>", lambda e: mostrar_pestaña("reportes"))
+
+
+proveedores_imgA = Image.open("Img/Img-9.png")  # Cambia la ruta por la de tu imagen
+proveedores_photoA = ImageTk.PhotoImage(proveedores_imgA)
+canvas2.create_image(150, 80, image=proveedores_photoA)
+canvas2.image = proveedores_photoA
 canvas2.create_text(70, 180, text="Menú", fill="white", font=("Helvetica", 30, "bold"))
 canvas2.create_rectangle(20, 200, 275, 203, fill="#FFFFFF", outline="#FFFFFF")
 # Canvas 3: Contenido principal
-canvas3 = tk.Canvas(ventana, width=1000, height=35, highlightthickness=0, bg="#292B2B")
-canvas3.place(x=312, y=17)  # Coordenadas específicas dentro de la ventana
+canvas3 = tk.Canvas(root, width=1000, height=35, highlightthickness=0, bg="#292B2B")
+canvas3.place(x=312, y=17)  # Coordenadas específicas dentro de la main_page
 dibujar_rectangulo_redondeado(canvas3, 0, 0, 1000, 35, r=10, color="#3A3939")
 
 # Texto inicial en el centro del Canvas
 texto_id = canvas3.create_text(500, 17.5, text="", fill="white", font=("Helvetica", 16, "bold"))
 
 # Canvas 4: Botoneras
-canvas4 = tk.Canvas(ventana, width=280, height=100, highlightthickness=0, bg="#232323")
-canvas4.place(x=360, y=170)  # Colocado justo debajo del canvas1
-dibujar_rectangulo_redondeado(canvas4, 0, 0, 280, 100, r=20, color="#8B51F5")
-canvas41 = tk.Canvas(ventana, width=100, height=100, highlightthickness=0, bg="#6334E3")
-canvas41.place(x=360, y=170)  # Colocado justo debajo del canvas1
-canvas41.create_rectangle(0, 0, 100, 100, fill="#6334E3", outline="#6334E3")
+client_btn = tk.Canvas(main_page, width=280, height=100, highlightthickness=0, bg="#232323")
+client_btn.place(x=360, y=170)  # Colocado justo debajo del canvas1
+dibujar_rectangulo_redondeado(client_btn, 0, 0, 280, 100, r=20, color="#8B51F5")
+client_btn1 = tk.Canvas(main_page, width=100, height=100, highlightthickness=0, bg="#6334E3")
+client_btn1.place(x=360, y=170)  # Colocado justo debajo del canvas1
+client_btn1.create_rectangle(0, 0, 100, 100, fill="#6334E3", outline="#6334E3")
 
 # Agregar texto dentro del rectángulo
-texto_canvas = canvas4.create_text(190, 50, text="Haz clic aquí", fill="white", font=("Arial", 16, "bold"))
 
-image1 = Image.open("Img/Img-1.png")  # Cambia la ruta por la de tu imagen
-photo1 = ImageTk.PhotoImage(image1)
-canvas41.create_image(50, 50, image=photo1)
-canvas41.image = photo1
+texto_canvas = client_btn.create_text(108, 55, text="Haz clic aquí", fill="white", font=("Arial", 16, "bold"), anchor="w")
+titulo_canvas = client_btn.create_text(108, 30, text="Clientes", fill="white", font=("Arial", 18, "bold"), anchor="w")
+
+client_img = Image.open("Img/Img-1.png")  # Cambia la ruta por la de tu imagen
+client_photo = ImageTk.PhotoImage(client_img)
+client_btn1.create_image(50, 50, image=client_photo)
+client_btn1.image = client_photo
 
 # Canvas 5: Botoneras
-canvas5 = tk.Canvas(ventana, width=280, height=100, highlightthickness=0, bg="#232323")
-canvas5.place(x=680, y=170)  # Colocado justo debajo del canvas1
-dibujar_rectangulo_redondeado(canvas5, 0, 0, 280, 100, r=20, color="#C0C0C0")
-canvas51 = tk.Canvas(ventana, width=100, height=100, highlightthickness=0, bg="#AAAAAA")
-canvas51.place(x=680, y=170)  # Colocado justo debajo del canvas1
-canvas51.create_rectangle(0, 0, 100, 100, fill="#AAAAAA", outline="#AAAAAA")
+proveedores_btn = tk.Canvas(main_page, width=280, height=100, highlightthickness=0, bg="#232323")
+proveedores_btn.place(x=680, y=170)  # Colocado justo debajo del canvas1
+dibujar_rectangulo_redondeado(proveedores_btn, 0, 0, 280, 100, r=20, color="#C0C0C0")
+proveedores_btn1 = tk.Canvas(main_page, width=100, height=100, highlightthickness=0, bg="#AAAAAA")
+proveedores_btn1.place(x=680, y=170)  # Colocado justo debajo del canvas1
+proveedores_btn1.create_rectangle(0, 0, 100, 100, fill="#AAAAAA", outline="#AAAAAA")
 
 # Agregar texto dentro del rectángulo
-texto = canvas5.create_text(190, 50, text="Haz clic aquí", fill="white", font=("Arial", 16, "bold"))
+texto_canvas = proveedores_btn.create_text(108, 55, text="Haz clic aquí", fill="white", font=("Arial", 16, "bold"), anchor="w")
+titulo_canvas = proveedores_btn.create_text(108, 30, text="Proveedores", fill="white", font=("Arial", 18, "bold"), anchor="w")
 
-image2 = Image.open("Img/Img-2.png")  # Cambia la ruta por la de tu imagen
-photo2 = ImageTk.PhotoImage(image2)
-canvas51.create_image(50, 50, image=photo2)
-canvas51.image = photo2
+proveedores_img = Image.open("Img/Img-2.png")  # Cambia la ruta por la de tu imagen
+proveedores_photo = ImageTk.PhotoImage(proveedores_img)
+proveedores_btn1.create_image(50, 50, image=proveedores_photo)
+proveedores_btn1.image = proveedores_photo
 
 # Canvas 6: Botoneras
-canvas6 = tk.Canvas(ventana, width=280, height=100, highlightthickness=0, bg="#232323")
-canvas6.place(x=1000, y=170)  # Colocado justo debajo del canvas1
-rectangulo3 = dibujar_rectangulo_redondeado(canvas6, 0, 0, 280, 100, r=20, color="#F06E9C")
-canvas61 = tk.Canvas(ventana, width=100, height=100, highlightthickness=0, bg="#E93578")
-canvas61.place(x=1000, y=170)  # Colocado justo debajo del canvas1
-rectangulo31 = canvas61.create_rectangle(0, 0, 100, 100, fill="#E93578", outline="#E93578")
+products_btn = tk.Canvas(main_page, width=280, height=100, highlightthickness=0, bg="#232323")
+products_btn.place(x=1000, y=170)  # Colocado justo debajo del canvas1
+products_rectangulo = dibujar_rectangulo_redondeado(products_btn, 0, 0, 280, 100, r=20, color="#F06E9C")
+products_btn1 = tk.Canvas(main_page, width=100, height=100, highlightthickness=0, bg="#E93578")
+products_btn1.place(x=1000, y=170)  # Colocado justo debajo del canvas1
+products_rectangulo1 = products_btn1.create_rectangle(0, 0, 100, 100, fill="#E93578", outline="#E93578")
 
 # Agregar texto dentro del rectángulo
-texto = canvas6.create_text(190, 50, text="Haz clic aquí", fill="white", font=("Arial", 16, "bold"))
+texto_canvas = products_btn.create_text(108, 55, text="Haz clic aquí", fill="white", font=("Arial", 16, "bold"), anchor="w")
+titulo_canvas = products_btn.create_text(108, 30, text="Productos", fill="white", font=("Arial", 18, "bold"), anchor="w")
 
-image3 = Image.open("Img/Img-3.png")  # Cambia la ruta por la de tu imagen
-photo3 = ImageTk.PhotoImage(image3)
-image31 = canvas61.create_image(50, 50, image=photo3)
-canvas61.image = photo3
+products_img = Image.open("Img/Img-3.png")  # Cambia la ruta por la de tu imagen
+products_photo = ImageTk.PhotoImage(products_img)
+products_img1 = products_btn1.create_image(50, 50, image=products_photo)
+products_btn1.image = products_photo
 
-canvas6.config(cursor="hand2")  # Cursor estilo "manito"
-canvas61.config(cursor="hand2")  # Cursor estilo "manito"
+products_btn.config(cursor="hand2")  # Cursor estilo "manito"
+products_btn1.config(cursor="hand2")  # Cursor estilo "manito"
 
+# Asociar el clic sobre el client_btn con la función del rectángulo
+products_btn.tag_bind(products_rectangulo, "<Button-1>", lambda e: mostrar_pestaña("productos"))
+products_btn1.tag_bind(products_rectangulo1, "<Button-1>", lambda e: mostrar_pestaña("productos"))
+products_btn1.tag_bind(products_img1, "<Button-1>", lambda e: mostrar_pestaña("productos"))
 
 # Canvas 7: Botoneras
-canvas7 = tk.Canvas(ventana, width=280, height=100, highlightthickness=0, bg="#232323")
-canvas7.place(x=360, y=300)  # Colocado justo debajo del canvas1
-dibujar_rectangulo_redondeado(canvas7, 0, 0, 280, 100, r=20, color="#3D8AF7")
-canvas71 = tk.Canvas(ventana, width=100, height=100, highlightthickness=0, bg="#3D8AF7")
-canvas71.place(x=360, y=300)  # Colocado justo debajo del canvas1
-canvas71.create_rectangle(0, 0, 100, 100, fill="#1464F6", outline="#1464F6")
+utility_btn = tk.Canvas(main_page, width=280, height=100, highlightthickness=0, bg="#232323")
+utility_btn.place(x=360, y=300)  # Colocado justo debajo del canvas1
+dibujar_rectangulo_redondeado(utility_btn, 0, 0, 280, 100, r=20, color="#3D8AF7")
+utility_btn1 = tk.Canvas(main_page, width=100, height=100, highlightthickness=0, bg="#3D8AF7")
+utility_btn1.place(x=360, y=300)  # Colocado justo debajo del canvas1
+utility_btn1.create_rectangle(0, 0, 100, 100, fill="#1464F6", outline="#1464F6")
 
 # Agregar texto dentro del rectángulo
-texto = canvas7.create_text(190, 50, text="Haz clic aquí", fill="white", font=("Arial", 16, "bold"))
+texto_canvas = utility_btn.create_text(108, 55, text="Haz clic aquí", fill="white", font=("Arial", 16, "bold"), anchor="w")
+titulo_canvas = utility_btn.create_text(108, 30, text="Utilidad", fill="white", font=("Arial", 18, "bold"), anchor="w")
 
-image4 = Image.open("Img/Img-4.png")  # Cambia la ruta por la de tu imagen
-photo4 = ImageTk.PhotoImage(image4)
-canvas71.create_image(50, 50, image=photo4)
-canvas71.image = photo4
+utility_img = Image.open("Img/Img-4.png")  # Cambia la ruta por la de tu imagen
+utility_photo = ImageTk.PhotoImage(utility_img)
+utility_btn1.create_image(50, 50, image=utility_photo)
+utility_btn1.image = utility_photo
 
 
 # Canvas 8: Botoneras
-canvas8 = tk.Canvas(ventana, width=280, height=100, highlightthickness=0, bg="#232323")
-canvas8.place(x=680, y=300)  # Colocado justo debajo del canvas1
-dibujar_rectangulo_redondeado(canvas8, 0, 0, 280, 100, r=20, color="#92D36E")
-canvas81 = tk.Canvas(ventana, width=100, height=100, highlightthickness=0, bg="#72BB53")
-canvas81.place(x=680, y=300)  # Colocado justo debajo del canvas1
-canvas81.create_rectangle(0, 0, 100, 100, fill="#72BB53", outline="#72BB53")
+shop_btn = tk.Canvas(main_page, width=280, height=100, highlightthickness=0, bg="#232323")
+shop_btn.place(x=680, y=300)  # Colocado justo debajo del canvas1
+dibujar_rectangulo_redondeado(shop_btn, 0, 0, 280, 100, r=20, color="#92D36E")
+shop_btn1 = tk.Canvas(main_page, width=100, height=100, highlightthickness=0, bg="#72BB53")
+shop_btn1.place(x=680, y=300)  # Colocado justo debajo del canvas1
+shop_btn1.create_rectangle(0, 0, 100, 100, fill="#72BB53", outline="#72BB53")
 
 # Agregar texto dentro del rectángulo
-texto = canvas8.create_text(190, 50, text="Haz clic aquí", fill="white", font=("Arial", 16, "bold"))
+texto_canvas = shop_btn.create_text(108, 55, text="Haz clic aquí", fill="white", font=("Arial", 16, "bold"), anchor="w")
+titulo_canvas = shop_btn.create_text(108, 30, text="Compras", fill="white", font=("Arial", 18, "bold"), anchor="w")
 
-image5 = Image.open("Img/Img-5.png")  # Cambia la ruta por la de tu imagen
-photo5 = ImageTk.PhotoImage(image5)
-canvas81.create_image(50, 50, image=photo5)
-canvas81.image = photo5
+shop_img = Image.open("Img/Img-5.png")  # Cambia la ruta por la de tu imagen
+shop_photo = ImageTk.PhotoImage(shop_img)
+shop_btn1.create_image(50, 50, image=shop_photo)
+shop_btn1.image = shop_photo
 
 # Canvas 9: Botoneras
-canvas9 = tk.Canvas(ventana, width=280, height=100, highlightthickness=0, bg="#232323")
-canvas9.place(x=1000, y=300)  # Colocado justo debajo del canvas1
-dibujar_rectangulo_redondeado(canvas9, 0, 0, 280, 100, r=20, color="#FF5D55")
-canvas91 = tk.Canvas(ventana, width=100, height=100, highlightthickness=0, bg="#FF3823")
-canvas91.place(x=1000, y=300)  # Colocado justo debajo del canvas1
-canvas91.create_rectangle(0, 0, 100, 100, fill="#FF3823", outline="#FF3823")
+sells_btn = tk.Canvas(main_page, width=280, height=100, highlightthickness=0, bg="#232323")
+sells_btn.place(x=1000, y=300)  # Colocado justo debajo del canvas1
+dibujar_rectangulo_redondeado(sells_btn, 0, 0, 280, 100, r=20, color="#FF5D55")
+sells_btn1 = tk.Canvas(main_page, width=100, height=100, highlightthickness=0, bg="#FF3823")
+sells_btn1.place(x=1000, y=300)  # Colocado justo debajo del canvas1
+sells_btn1.create_rectangle(0, 0, 100, 100, fill="#FF3823", outline="#FF3823")
 
 # Agregar texto dentro del rectángulo
-texto = canvas9.create_text(190, 50, text="Haz clic aquí", fill="white", font=("Arial", 16, "bold"))
+texto_canvas = sells_btn.create_text(108, 55, text="Haz clic aquí", fill="white", font=("Arial", 16, "bold"), anchor="w")
+titulo_canvas = sells_btn.create_text(108, 30, text="Ventas", fill="white", font=("Arial", 18, "bold"), anchor="w")
 
-image6 = Image.open("Img/Img-6.png")  # Cambia la ruta por la de tu imagen
-photo6 = ImageTk.PhotoImage(image6)
-canvas91.create_image(50, 50, image=photo6)
-canvas91.image = photo6
+sells_img = Image.open("Img/Img-6.png")  # Cambia la ruta por la de tu imagen
+sells_photo = ImageTk.PhotoImage(sells_img)
+sells_btn1.create_image(50, 50, image=sells_photo)
+sells_btn1.image = sells_photo
 
 
 # Canvas 10: Botoneras
-canvas10 = tk.Canvas(ventana, width=280, height=100, highlightthickness=0, bg="#232323")
-canvas10.place(x=360, y=430)  # Colocado justo debajo del canvas1
-rectangulo7 = dibujar_rectangulo_redondeado(canvas10, 0, 0, 280, 100, r=20, color="#4DD7FA")
-canvas101 = tk.Canvas(ventana, width=100, height=100, highlightthickness=0, bg="#00C8F8")
-canvas101.place(x=360, y=430)  # Colocado justo debajo del canvas1
-rectangulo71 = canvas101.create_rectangle(0, 0, 100, 100, fill="#00C8F8", outline="#00C8F8")
+transacciones_btn = tk.Canvas(main_page, width=280, height=100, highlightthickness=0, bg="#232323")
+transacciones_btn.place(x=360, y=430)  # Colocado justo debajo del canvas1
+transacciones_rectangulo = dibujar_rectangulo_redondeado(transacciones_btn, 0, 0, 280, 100, r=20, color="#4DD7FA")
+transacciones_btn1 = tk.Canvas(main_page, width=100, height=100, highlightthickness=0, bg="#00C8F8")
+transacciones_btn1.place(x=360, y=430)  # Colocado justo debajo del canvas1
+transacciones_rectangulo1 = transacciones_btn1.create_rectangle(0, 0, 100, 100, fill="#00C8F8", outline="#00C8F8")
 
 # Agregar texto dentro del rectángulo
-texto = canvas10.create_text(190, 50, text="Haz clic aquí", fill="white", font=("Arial", 16, "bold"))
+texto_canvas = transacciones_btn.create_text(108, 55, text="Haz clic aquí", fill="white", font=("Arial", 16, "bold"), anchor="w")
+titulo_canvas = transacciones_btn.create_text(108, 30, text="Transacciones", fill="white", font=("Arial", 18, "bold"), anchor="w")
 
-image7 = Image.open("Img/Img-7.png")  # Cambia la ruta por la de tu imagen
-photo7 = ImageTk.PhotoImage(image7)
-image71 = canvas101.create_image(50, 50, image=photo7)
-canvas101.image = photo7
+transacciones_img = Image.open("Img/Img-7.png")  # Cambia la ruta por la de tu imagen
+transacciones_photo = ImageTk.PhotoImage(transacciones_img)
+transacciones_img1 = transacciones_btn1.create_image(50, 50, image=transacciones_photo)
+transacciones_btn1.image = transacciones_photo
 
-canvas10.config(cursor="hand2")  # Cursor estilo "manito"
-canvas101.config(cursor="hand2")  # Cursor estilo "manito"
+transacciones_btn.config(cursor="hand2")  # Cursor estilo "manito"
+transacciones_btn1.config(cursor="hand2")  # Cursor estilo "manito"
 
-# Asociar el clic sobre el canvas4 con la función del rectángulo
-canvas10.tag_bind(rectangulo7, "<Button-1>", on_rectangle_click1)
-canvas101.tag_bind(rectangulo71, "<Button-1>", on_rectangle_click1)
-canvas101.tag_bind(image71, "<Button-1>", on_rectangle_click1)
+# Asociar el clic sobre el client_btn con la función del rectángulo
+transacciones_btn.tag_bind(transacciones_rectangulo, "<Button-1>", on_rectangle_click1)
+transacciones_btn1.tag_bind(transacciones_rectangulo1, "<Button-1>", on_rectangle_click1)
+transacciones_btn1.tag_bind(transacciones_img1, "<Button-1>", on_rectangle_click1)
 
 # Canvas 11: Botoneras
-canvas11 = tk.Canvas(ventana, width=280, height=100, highlightthickness=0, bg="#232323")
-canvas11.place(x=680, y=430)  # Colocado justo debajo del canvas1
-rectangulo8 = dibujar_rectangulo_redondeado(canvas11, 0, 0, 280, 100, r=20, color="#FFD783")
-canvas111 = tk.Canvas(ventana, width=100, height=100, highlightthickness=0, bg="#FFC957")
-canvas111.place(x=680, y=430)  # Colocado justo debajo del canvas1
-rectangulo81 = canvas111.create_rectangle(0, 0, 100, 100, fill="#FFC957", outline="#FFC957")
+reg_shop_btn = tk.Canvas(main_page, width=280, height=100, highlightthickness=0, bg="#232323")
+reg_shop_btn.place(x=680, y=430)  # Colocado justo debajo del canvas1
+reg_shop_rectangulo = dibujar_rectangulo_redondeado(reg_shop_btn, 0, 0, 280, 100, r=20, color="#FFD783")
+reg_shop_btn1 = tk.Canvas(main_page, width=100, height=100, highlightthickness=0, bg="#FFC957")
+reg_shop_btn1.place(x=680, y=430)  # Colocado justo debajo del canvas1
+reg_shop_rectangulo1 = reg_shop_btn1.create_rectangle(0, 0, 100, 100, fill="#FFC957", outline="#FFC957")
 
 # Agregar texto dentro del rectángulo
-texto = canvas11.create_text(190, 50, text="Haz clic aquí", fill="white", font=("Arial", 16, "bold"))
+texto1_reg_shop = reg_shop_btn.create_text(108, 30, text="Registrar", fill="white", font=("Arial", 18, "bold"), anchor="w")
+texto2_reg_shop = reg_shop_btn.create_text(108, 55, text="Compra", fill="white", font=("Arial", 18, "bold"), anchor="w")
 
-image8 = Image.open("Img/Img-5.png")  # Cambia la ruta por la de tu imagen
-photo8 = ImageTk.PhotoImage(image8)
-image81 = canvas111.create_image(50, 50, image=photo8)
-canvas111.image = photo8
+reg_shop_img = Image.open("Img/Img-5.png")  # Cambia la ruta por la de tu imagen
+reg_shop_photo = ImageTk.PhotoImage(reg_shop_img)
+reg_shop_img1 = reg_shop_btn1.create_image(50, 50, image=reg_shop_photo)
+reg_shop_btn1.image = reg_shop_photo
 
-canvas11.config(cursor="hand2")  # Cursor estilo "manito"
-canvas111.config(cursor="hand2")  # Cursor estilo "manito"
+reg_shop_btn.config(cursor="hand2")  # Cursor estilo "manito"
+reg_shop_btn1.config(cursor="hand2")  # Cursor estilo "manito"
 
-# Asociar el clic sobre el canvas4 con la función del rectángulo
-canvas11.tag_bind(rectangulo8, "<Button-1>", on_rectangle_click1)
-canvas111.tag_bind(rectangulo81, "<Button-1>", on_rectangle_click1)
-canvas111.tag_bind(image81, "<Button-1>", on_rectangle_click1)
+# Asociar el clic sobre el client_btn con la función del rectángulo
+reg_shop_btn.tag_bind(reg_shop_rectangulo, "<Button-1>", lambda e: abrir_ventana_compras())
+reg_shop_btn1.tag_bind(reg_shop_rectangulo1, "<Button-1>", lambda e: abrir_ventana_compras())
+reg_shop_btn1.tag_bind(reg_shop_img1, "<Button-1>", lambda e: abrir_ventana_compras())
 
 # Canvas 12: Botoneras
-canvas12 = tk.Canvas(ventana, width=280, height=100, highlightthickness=0, bg="#232323")
-canvas12.place(x=1000, y=430)  # Colocado justo debajo del canvas1
-rectangulo9 = dibujar_rectangulo_redondeado(canvas12, 0, 0, 280, 100, r=20, color="#FFA382")
-canvas121 = tk.Canvas(ventana, width=100, height=100, highlightthickness=0, bg="#FF8351")
-canvas121.place(x=1000, y=430)  # Colocado justo debajo del canvas1
-rectangulo91 = canvas121.create_rectangle(0, 0, 100, 100, fill="#FF8351", outline="#FF8351")
+reg_sell_btn = tk.Canvas(main_page, width=280, height=100, highlightthickness=0, bg="#232323")
+reg_sell_btn.place(x=1000, y=430)  # Colocado justo debajo del canvas1
+reg_sell_rectangulo = dibujar_rectangulo_redondeado(reg_sell_btn, 0, 0, 280, 100, r=20, color="#FFA382")
+reg_sell_btn1 = tk.Canvas(main_page, width=100, height=100, highlightthickness=0, bg="#FF8351")
+reg_sell_btn1.place(x=1000, y=430)  # Colocado justo debajo del canvas1
+reg_sell_rectangulo1 = reg_sell_btn1.create_rectangle(0, 0, 100, 100, fill="#FF8351", outline="#FF8351")
 
 # Agregar texto dentro del rectángulo
-texto = canvas12.create_text(190, 50, text="Haz clic aquí", fill="white", font=("Arial", 16, "bold"))
+texto1_reg_sell = reg_sell_btn.create_text(108, 30, text="Registrar", fill="white", font=("Arial", 18, "bold"), anchor="w")
+texto2_reg_sell = reg_sell_btn.create_text(108, 55, text="Venta", fill="white", font=("Arial", 18, "bold"), anchor="w")
 
-image9 = Image.open("Img/Img-6.png")  # Cambia la ruta por la de tu imagen
-photo9 = ImageTk.PhotoImage(image9)
-image91 = canvas121.create_image(50, 50, image=photo9)
-canvas121.image = photo9
+reg_sell_img = Image.open("Img/Img-6.png")  # Cambia la ruta por la de tu imagen
+reg_sell_photo = ImageTk.PhotoImage(reg_sell_img)
+reg_sell_img1 = reg_sell_btn1.create_image(50, 50, image=reg_sell_photo)
+reg_sell_btn1.image = reg_sell_photo
 
-canvas12.config(cursor="hand2")  # Cursor estilo "manito"
-canvas121.config(cursor="hand2")  # Cursor estilo "manito"
+reg_sell_btn.config(cursor="hand2")  # Cursor estilo "manito"
+reg_sell_btn1.config(cursor="hand2")  # Cursor estilo "manito"
 
-# Asociar el clic sobre el canvas4 con la función del rectángulo
-canvas12.tag_bind(rectangulo9, "<Button-1>", on_rectangle_click1)
-canvas121.tag_bind(rectangulo91, "<Button-1>", on_rectangle_click1)
-canvas121.tag_bind(image91, "<Button-1>", on_rectangle_click1)
+# Asociar el clic sobre el client_btn con la función del rectángulo
+reg_sell_btn.tag_bind(reg_sell_rectangulo, "<Button-1>", lambda e: abrir_ventana_ventas())
+reg_sell_btn1.tag_bind(reg_sell_rectangulo1, "<Button-1>", lambda e: abrir_ventana_ventas())
+reg_sell_btn1.tag_bind(reg_sell_img1, "<Button-1>", lambda e: abrir_ventana_ventas())
 
-ventana.after(100, get_clientes)  # Ejecuta la función 100ms después de iniciar la ventana
-ventana.after(100, get_proveedor)  # Ejecuta la función 100ms después de iniciar la ventana
-ventana.after(100, get_productos)  # Ejecuta la función 100ms después de iniciar la ventana
-ventana.after(100, get_compras)  # Ejecuta la función 100ms después de iniciar la ventana
-ventana.after(100, get_ventas)  # Ejecuta la función 100ms después de iniciar la ventana
-ventana.after(100, get_transacciones)  # Ejecuta la función 100ms después de iniciar la ventana
-ventana.after(100, get_utilidad)  # Ejecuta la función 100ms después de iniciar la ventana
-
-
+main_page.after(100, get_clientes)  # Ejecuta la función 100ms después de iniciar la main_page
+main_page.after(100, get_proveedor)  # Ejecuta la función 100ms después de iniciar la main_page
+main_page.after(100, get_productos)  # Ejecuta la función 100ms después de iniciar la main_page
+main_page.after(100, get_compras)  # Ejecuta la función 100ms después de iniciar la main_page
+main_page.after(100, get_ventas)  # Ejecuta la función 100ms después de iniciar la main_page
+main_page.after(100, get_transacciones)  # Ejecuta la función 100ms después de iniciar la main_page
+main_page.after(100, get_utilidad)  # Ejecuta la función 100ms después de iniciar la main_page
 
 # Iniciar la actualización del reloj
 actualizar_reloj(canvas3, texto_id)
 
-# Lista de frames
-frames = [ventana, ventana2, ventana3]
-
-# Crear botones para cambiar entre las pestañas
-boton1 = tk.Button(root, text="Pestaña 1", command=lambda: mostrar_pestaña(ventana))
-boton2 = tk.Button(root, text="Pestaña 2", command=lambda: mostrar_pestaña(ventana2))
-boton3 = tk.Button(root, text="Pestaña 3", command=lambda: mostrar_pestaña(ventana3))
-
-# Colocar los botones al principio
-boton1.pack(side="left", padx=5, pady=5)
-boton2.pack(side="left", padx=5, pady=5)
-boton3.pack(side="left", padx=5, pady=5)
-
-mostrar_pestaña(ventana)
+mostrar_pestaña("dashboard")
 center_window(root)
 root.mainloop()
