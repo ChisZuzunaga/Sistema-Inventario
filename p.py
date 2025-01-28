@@ -9,34 +9,34 @@ cursor = conexion.cursor()
 
 # Inicialización de las tablas (si no existen)
 cursor.execute("""
-CREATE TABLE IF NOT EXISTS Productos (
-    ID_Producto INTEGER PRIMARY KEY AUTOINCREMENT,
-    Nombre VARCHAR(20) NOT NULL,
-    Cantidad INTEGER NOT NULL,
-    Estado VARCHAR(20) NOT NULL,
-    Tipo VARCHAR(20) NOT NULL
-)
+CREATE or replace TABLE Productos (
+  	ID_Producto INTEGER PRIMARY KEY,
+  	Nombre Varchar(20) NOT NULL,
+  	Cantidad Int NOT NULL,
+  	Estado Varchar(20) NOT NULL,
+  	Tipo Varchar(20) NOT NULL
+);
 """)
 cursor.execute("""
-CREATE TABLE IF NOT EXISTS Persona (
-    ID_Persona INTEGER PRIMARY KEY AUTOINCREMENT,
-    Nombre VARCHAR(20),
-    Apellido VARCHAR(20),
-    Rol VARCHAR(20)
-)
+CREATE OR REPLACE TABLE Persona (
+    Rut_Persona INTEGER PRIMARY KEY,
+    Nombre Varchar(20),
+    Apellido Varchar(20),
+    Rol Varchar(20)
+);
 """)
 cursor.execute("""
-CREATE TABLE IF NOT EXISTS Transaccion (
-    ID_Transaccion INTEGER PRIMARY KEY AUTOINCREMENT,
+CREATE OR REPLACE TABLE Transaccion (
+    ID_Transaccion INTEGER PRIMARY KEY,
     Persona_ID INTEGER,
     Producto_ID INTEGER,
-    Fecha DATE,
-    Accion VARCHAR(20),
-    Cantidad INTEGER,
-    Precio INTEGER,
-    FOREIGN KEY (Persona_ID) REFERENCES Persona(ID_Persona),
+    Fecha Date,
+    Accion Varchar(20),
+    Cantidad Integer,
+    Precio Integer,
+    FOREIGN KEY (Persona_ID) REFERENCES Persona(Rut_Persona),
     FOREIGN KEY (Producto_ID) REFERENCES Productos(ID_Producto)
-)
+);
 """)
 conexion.commit()
 
