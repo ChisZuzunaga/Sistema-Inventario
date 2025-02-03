@@ -1,6 +1,9 @@
 import tkinter as tk
 import sqlite3
-from tkinter import ttk, messagebox
+import os
+import shutil
+import pandas as pd
+from tkinter import ttk, messagebox, filedialog, Listbox, Scrollbar
 from datetime import datetime
 from PIL import Image, ImageTk  # Usado para cargar imágenes JPG/PNG
 
@@ -10,7 +13,16 @@ root.geometry("1340x630")
 root.configure(bg="#232323")
 root.resizable(False, False)
 
-conexion = sqlite3.connect("productos.db")
+# Carpeta de copias de seguridad
+CARPETA_BACKUP = "Copias-De-Seguridad"
+
+# Nombre de la base de datos original
+DB_ORIGINAL = "productos.db"
+
+# Conectar con la base de datos
+DB_NAME = "productos.db"
+
+conexion = sqlite3.connect(DB_NAME)
 cursor = conexion.cursor()
 
 # Crear los frames (simulando pestañas)
@@ -19,8 +31,13 @@ clientes_page = tk.Frame(root, bg="#32CD32")  # Pestaña 2
 productos_page = tk.Frame(root, bg="#1E90FF")  # Pestaña 3
 transac_page = tk.Frame(root, bg="#BEDFAA")  # Pestaña 4
 reports_page = tk.Frame(root, bg="#AAAAAA")  # Pestaña 5
+config_page = tk.Frame(root, bg="#242224")  # Pestaña 6
 
-frames = [main_page, clientes_page, productos_page, transac_page, reports_page]
+frames = [main_page, clientes_page, productos_page, transac_page, reports_page, config_page]
+
+# Crear carpeta si no existe
+if not os.path.exists(CARPETA_BACKUP):
+    os.makedirs(CARPETA_BACKUP)
 
 # Diccionario para asociar pestañas con imágenes y texto
 tabs = {
@@ -59,7 +76,209 @@ tabs = {
         "image_default": "Img/Report-Default.png",
         "image_active": "Img/Report-Active.png",
     },
+    "configuracion": {
+        "frame": config_page,
+        "image_tag": "config_img",
+        "text_tag": "config_text",
+        "image_default": "Img/Config-Default.png",
+        "image_active": "Img/Config-Active.png",
+    },
 }
+
+def actualizar_contenido():
+    main_page.after(100, get_clientes)  # Ejecuta la función 100ms después de iniciar la main_page
+    main_page.after(100, get_proveedor)  # Ejecuta la función 100ms después de iniciar la main_page
+    main_page.after(100, get_productos)  # Ejecuta la función 100ms después de iniciar la main_page
+    main_page.after(100, get_compras)  # Ejecuta la función 100ms después de iniciar la main_page
+    main_page.after(100, get_ventas)  # Ejecuta la función 100ms después de iniciar la main_page
+    main_page.after(100, get_transacciones)  # Ejecuta la función 100ms después de iniciar la main_page
+    main_page.after(100, get_utilidad)  # Ejecuta la función 100ms después de iniciar la main_page
+
+# Función para hacer una copia de seguridad
+def hacer_copia_seguridad():
+    try:
+        # Nombre con fecha y hora
+        from datetime import datetime   
+        fecha_hora = datetime.now().strftime("%d-%m-%Y_%H-%M-%S")
+        backup_path = os.path.join(CARPETA_BACKUP, f"backup_{fecha_hora}.db")
+
+        # Copiar base de datos
+        shutil.copy(DB_ORIGINAL, backup_path)
+
+        messagebox.showinfo("Éxito", f"Copia de seguridad guardada en:\n{backup_path}")
+    except Exception as e:
+        messagebox.showerror("Error", f"No se pudo hacer la copia de seguridad:\n{str(e)}")
+
+# Función para contar registros en las tablas
+def obtener_info_tablas(db_path):
+    conexion = sqlite3.connect(db_path)
+    cursor = conexion.cursor()
+
+    info = {}
+    try:
+        cursor.execute("SELECT COUNT(*) FROM Productos")
+        info["Productos"] = cursor.fetchone()[0]
+
+        cursor.execute("SELECT COUNT(*) FROM Persona")
+        info["Personas"] = cursor.fetchone()[0]
+
+        cursor.execute("SELECT COUNT(*) FROM Transaccion")
+        info["Transacciones"] = cursor.fetchone()[0]
+
+    except sqlite3.Error as e:
+        info["Error"] = str(e)
+
+    conexion.close()
+    return info
+
+# Función para restaurar copia de seguridad
+def restaurar_copia_seguridad():
+    def seleccionar_backup(event):
+        seleccion = listbox.curselection()
+        if seleccion:
+            archivo_seleccionado = listbox.get(seleccion[0])
+            backup_path = os.path.join(CARPETA_BACKUP, archivo_seleccionado)
+            info = obtener_info_tablas(backup_path)
+
+            # Mostrar información en el Label
+            info_texto.set(f"Productos: {info.get('Productos', 'Error')}\n"
+                           f"Personas: {info.get('Personas', 'Error')}\n"
+                           f"Transacciones: {info.get('Transacciones', 'Error')}\n")
+
+    def confirmar_restauracion():
+        seleccion = listbox.curselection()
+        if seleccion:
+            archivo_seleccionado = listbox.get(seleccion[0])
+            backup_path = os.path.join(CARPETA_BACKUP, archivo_seleccionado)
+
+            # Confirmar
+            if messagebox.askyesno("Restaurar", f"¿Deseas restaurar la base de datos desde {archivo_seleccionado}?"):
+                shutil.copy(backup_path, DB_ORIGINAL)
+                messagebox.showinfo("Éxito", "Base de datos restaurada correctamente.")
+
+            ventana.destroy()
+
+    # Crear ventana
+    ventana = tk.Toplevel()
+    ventana.title("Restaurar copia de seguridad")
+    ventana.geometry("600x300")
+    ventana.config(bg="#242224")
+
+    # Lista de archivos de respaldo
+    archivos = sorted(os.listdir(CARPETA_BACKUP), reverse=True)
+
+    listbox = Listbox(ventana)
+    for archivo in archivos:
+        listbox.insert(tk.END, archivo)
+
+    listbox.bind("<<ListboxSelect>>", seleccionar_backup)
+
+    # Colocar Listbox con place()
+    listbox.place(x=10, y=10, width=360, height=270)
+    listbox.config(bg="#333538", fg="white")
+
+    # Scrollbar
+    scrollbar = tk.Scrollbar(ventana, orient="vertical", command=listbox.yview)
+    scrollbar.place(x=370, y=10, height=270)  # Ajustamos la posición y la altura
+    scrollbar.config(bg="#2A2B2A")
+
+    # Vincular scrollbar con listbox
+    listbox.config(yscrollcommand=scrollbar.set)
+
+    # Información de la base de datos
+    info_texto = tk.StringVar()
+    label_info = tk.Label(ventana, textvariable=info_texto, justify=tk.LEFT)
+    label_info.config(font=('Arial', 12),bg="#242224", fg="white")
+    label_info.place(x=410, y=30)
+
+    # Botones
+    btn_aceptar = tk.Button(ventana, text="Aceptar", font=('Arial', 12), bg="#1F68A3", fg="white", command=confirmar_restauracion)
+    btn_aceptar.place(x=410, y=250, width=75, height=30)
+
+    btn_cancelar = tk.Button(ventana, text="Cancelar", font=('Arial', 12), bg="#1F68A3", fg="white", command=ventana.destroy)
+    btn_cancelar.place(x=500, y=250, width=75, height=30)
+
+    ventana.mainloop()
+
+def exportar_bd_excel():
+    try:
+        conn = sqlite3.connect(DB_NAME)
+        tablas = ["Productos", "Persona", "Transaccion"]
+
+        # Generar un nombre de archivo predeterminado con la fecha actual
+        fecha_actual = datetime.now().strftime("%d-%m-%Y")
+        nombre_predeterminado = f"BD_INVENTARIO_{fecha_actual}.xlsx"
+
+        archivo_destino = filedialog.asksaveasfilename(
+            defaultextension=".xlsx",
+            filetypes=[("Excel Files", "*.xlsx")],
+            title="Guardar base de datos como",
+            initialfile=nombre_predeterminado  # Nombre por defecto
+        )
+
+        if not archivo_destino:
+            return  # Si el usuario cancela, no hacer nada
+
+        with pd.ExcelWriter(archivo_destino, engine="xlsxwriter") as writer:
+            for tabla in tablas:
+                df = pd.read_sql_query(f"SELECT * FROM {tabla}", conn)
+                df.to_excel(writer, sheet_name=tabla, index=False)
+        
+        actualizar_contenido()
+        conn.close()
+        messagebox.showinfo("Éxito", "Base de datos exportada correctamente a Excel.")
+    except Exception as e:
+        messagebox.showerror("Error", f"No se pudo exportar la base de datos: {e}")
+
+def importar_bd_excel():
+    try:
+        conn = sqlite3.connect(DB_NAME)
+        cursor = conn.cursor()
+
+        archivo_origen = filedialog.askopenfilename(
+            filetypes=[("Excel Files", "*.xlsx")],
+            title="Seleccionar archivo de base de datos"
+        )
+
+        if not archivo_origen:
+            return  # Si el usuario cancela, no hacer nada
+
+        xls = pd.ExcelFile(archivo_origen)
+        tablas = ["Productos", "Persona", "Transaccion"]
+
+        for tabla in tablas:
+            if tabla in xls.sheet_names:
+                df = pd.read_excel(xls, sheet_name=tabla)
+                cursor.execute(f"DELETE FROM {tabla}")  # Limpiar tabla antes de importar
+                df.to_sql(tabla, conn, if_exists="append", index=False)
+
+        actualizar_contenido()
+        conn.commit()
+        conn.close()
+        messagebox.showinfo("Éxito", "Base de datos importada correctamente desde Excel.")
+    except Exception as e:
+        messagebox.showerror("Error", f"No se pudo importar la base de datos: {e}")
+
+def limpiar_base_datos():
+    try:
+        conn = sqlite3.connect(DB_NAME)
+        cursor = conn.cursor()
+
+        confirmacion = messagebox.askyesno("Confirmar", "¿Estás seguro de que quieres eliminar todos los registros?")
+        if not confirmacion:
+            return  # Si el usuario cancela, no hacer nada
+
+        # Eliminar datos de todas las tablas
+        cursor.execute("DELETE FROM Transaccion;")
+        cursor.execute("DELETE FROM Persona;")
+        cursor.execute("DELETE FROM Productos;")
+        
+        actualizar_contenido()
+        conn.commit()
+        conn.close()
+        messagebox.showinfo("Éxito", "Todos los registros han sido eliminados.")
+    except Exception as e:
+        messagebox.showerror("Error", f"No se pudo limpiar la base de datos: {e}")
 
 def mostrar_pestaña(selected_tab):
     # Ocultar todos los frames
@@ -77,19 +296,14 @@ def mostrar_pestaña(selected_tab):
             canvas2.itemconfig(tab_info["image_tag"], image=active_image)
             canvas2.itemconfig(tab_info["text_tag"], fill="#1F68A3")  # Texto activo
             tabs[tab_name]["active_image"] = active_image  # Mantener referencia
+            actualizar_contenido()
         else:
             # Cambiar a la imagen por defecto
             default_image = ImageTk.PhotoImage(Image.open(tab_info["image_default"]))
             canvas2.itemconfig(tab_info["image_tag"], image=default_image)
             canvas2.itemconfig(tab_info["text_tag"], fill="white")  # Texto inactivo
             tabs[tab_name]["default_image"] = default_image  # Mantener referencia
-
-
-label2 = tk.Label(clientes_page, text="Contenido de la Pestaña 2", font=("Arial", 20), bg="#32CD32")
-label2.pack(pady=20)
-
-label3 = tk.Label(productos_page, text="Contenido de la Pestaña 3", font=("Arial", 20), bg="#1E90FF")
-label3.pack(pady=20)
+            actualizar_contenido()
 
 def validar_numero(event, campo, label_error):
     """Valida que solo se ingresen números en el campo."""
@@ -104,7 +318,7 @@ def validar_numero(event, campo, label_error):
 def get_clientes():
     try:
         # Conectar a la base de datos
-        conn = sqlite3.connect('productos.db')  # Cambia la ruta si es necesario
+        conn = sqlite3.connect(DB_NAME)  # Cambia la ruta si es necesario
         cursor = conn.cursor()
 
         # Ejecutar la consulta
@@ -126,7 +340,7 @@ def get_clientes():
 def get_proveedor():
     try:
         # Conectar a la base de datos
-        conn = sqlite3.connect('productos.db')  # Cambia la ruta si es necesario
+        conn = sqlite3.connect(DB_NAME)  # Cambia la ruta si es necesario
         cursor = conn.cursor()
 
         # Ejecutar la consulta
@@ -148,7 +362,7 @@ def get_proveedor():
 def get_productos():
     try:
         # Conectar a la base de datos
-        conn = sqlite3.connect('productos.db')  # Cambia la ruta si es necesario
+        conn = sqlite3.connect(DB_NAME)  # Cambia la ruta si es necesario
         cursor = conn.cursor()
 
         # Ejecutar la consulta
@@ -170,7 +384,7 @@ def get_productos():
 def get_compras():
     try:
         # Conectar a la base de datos
-        conn = sqlite3.connect('productos.db')  # Cambia la ruta si es necesario
+        conn = sqlite3.connect(DB_NAME)  # Cambia la ruta si es necesario
         cursor = conn.cursor()
 
         # Ejecutar la consulta
@@ -192,7 +406,7 @@ def get_compras():
 def get_ventas():
     try:
         # Conectar a la base de datos
-        conn = sqlite3.connect('productos.db')  # Cambia la ruta si es necesario
+        conn = sqlite3.connect(DB_NAME)  # Cambia la ruta si es necesario
         cursor = conn.cursor()
 
         # Ejecutar la consulta
@@ -214,7 +428,7 @@ def get_ventas():
 def get_transacciones():
     try:
         # Conectar a la base de datos
-        conn = sqlite3.connect('productos.db')  # Cambia la ruta si es necesario
+        conn = sqlite3.connect(DB_NAME)  # Cambia la ruta si es necesario
         cursor = conn.cursor()
 
         # Ejecutar la consulta
@@ -236,7 +450,7 @@ def get_transacciones():
 def get_utilidad():
     try:
         # Conectar a la base de datos
-        conn = sqlite3.connect('productos.db')  # Cambia la ruta si es necesario
+        conn = sqlite3.connect(DB_NAME)  # Cambia la ruta si es necesario
         cursor = conn.cursor()
 
         # Ejecutar la consulta
@@ -308,13 +522,7 @@ def agregar_personas(campos_compras):
         conexion.commit()
 
         messagebox.showinfo("Éxito", "Persona agregado correctamente.")
-        main_page.after(100, get_clientes)  # Ejecuta la función 100ms después de iniciar la main_page
-        main_page.after(100, get_proveedor)  # Ejecuta la función 100ms después de iniciar la main_page
-        main_page.after(100, get_productos)  # Ejecuta la función 100ms después de iniciar la main_page
-        main_page.after(100, get_compras)  # Ejecuta la función 100ms después de iniciar la main_page
-        main_page.after(100, get_ventas)  # Ejecuta la función 100ms después de iniciar la main_page
-        main_page.after(100, get_transacciones)  # Ejecuta la función 100ms después de iniciar la main_page
-        main_page.after(100, get_utilidad)  # Ejecuta la función 100ms después de iniciar la main_page
+        actualizar_contenido()
 
     except Exception as e:
         messagebox.showerror("Error", f"No se pudo agregar a la persona: {e}")
@@ -421,7 +629,7 @@ def agregar_transaccion_compras(campos_compras, productos_dict, proveedores_dict
         proveedor_rut = proveedores_dict[proveedor_nombre]
 
         # Insertar en la base de datos
-        conn = sqlite3.connect('productos.db')
+        conn = sqlite3.connect(DB_NAME)
         cursor = conn.cursor()
         cursor.execute("""
             INSERT INTO Transaccion (Persona_ID, Producto_ID, Fecha, Accion, Cantidad, Precio)
@@ -429,13 +637,7 @@ def agregar_transaccion_compras(campos_compras, productos_dict, proveedores_dict
         """, (proveedor_rut, producto_id, accion, cantidad, precio))
         conn.commit()
         conn.close()
-        main_page.after(100, get_clientes)  # Ejecuta la función 100ms después de iniciar la main_page
-        main_page.after(100, get_proveedor)  # Ejecuta la función 100ms después de iniciar la main_page
-        main_page.after(100, get_productos)  # Ejecuta la función 100ms después de iniciar la main_page
-        main_page.after(100, get_compras)  # Ejecuta la función 100ms después de iniciar la main_page
-        main_page.after(100, get_ventas)  # Ejecuta la función 100ms después de iniciar la main_page
-        main_page.after(100, get_transacciones)  # Ejecuta la función 100ms después de iniciar la main_page
-        main_page.after(100, get_utilidad)  # Ejecuta la función 100ms después de iniciar la main_page
+        actualizar_contenido()
         messagebox.showinfo("Éxito", "Compra registrada exitosamente.")
     except Exception as e:
         messagebox.showerror("Error", f"No se pudo registrar la compra: {e}")
@@ -458,7 +660,7 @@ def agregar_transaccion_ventas(campos_compras, productos_dict, clientes_dict):
         cliente_rut = clientes_dict[cliente_nombre]
 
         # Insertar en la base de datos
-        conn = sqlite3.connect('productos.db')
+        conn = sqlite3.connect(DB_NAME)
         cursor = conn.cursor()
         cursor.execute("""
             INSERT INTO Transaccion (Persona_ID, Producto_ID, Fecha, Accion, Cantidad, Precio)
@@ -466,13 +668,7 @@ def agregar_transaccion_ventas(campos_compras, productos_dict, clientes_dict):
         """, (cliente_rut, producto_id, accion, cantidad, precio))
         conn.commit()
         conn.close()
-        main_page.after(100, get_clientes)  # Ejecuta la función 100ms después de iniciar la main_page
-        main_page.after(100, get_proveedor)  # Ejecuta la función 100ms después de iniciar la main_page
-        main_page.after(100, get_productos)  # Ejecuta la función 100ms después de iniciar la main_page
-        main_page.after(100, get_compras)  # Ejecuta la función 100ms después de iniciar la main_page
-        main_page.after(100, get_ventas)  # Ejecuta la función 100ms después de iniciar la main_page
-        main_page.after(100, get_transacciones)  # Ejecuta la función 100ms después de iniciar la main_page
-        main_page.after(100, get_utilidad)  # Ejecuta la función 100ms después de iniciar la main_page
+        actualizar_contenido()
         messagebox.showinfo("Éxito", "Venta registrada exitosamente.")
     except Exception as e:
         messagebox.showerror("Error", f"No se pudo registrar la venta: {e}")
@@ -493,7 +689,7 @@ def abrir_ventana_compras():
 
     # Obtener productos y proveedores desde la base de datos
     try:
-        conn = sqlite3.connect('productos.db')
+        conn = sqlite3.connect(DB_NAME)
         cursor = conn.cursor()
 
         # Obtener productos
@@ -596,7 +792,7 @@ def abrir_ventana_ventas():
 
     # Obtener productos y clientes desde la base de datos
     try:
-        conn = sqlite3.connect('productos.db')
+        conn = sqlite3.connect(DB_NAME)
         cursor = conn.cursor()
 
         # Obtener productos
@@ -765,10 +961,22 @@ canvas2.tag_bind("report_clickable", "<Enter>", lambda e: canvas2.config(cursor=
 canvas2.tag_bind("report_clickable", "<Leave>", lambda e: canvas2.config(cursor="hand2"))
 canvas2.tag_bind("report_clickable", "<Button-1>", lambda e: mostrar_pestaña("reportes"))
 
+# Cargar la imagen
+config_img_original = Image.open("Img/Config-Default.png")  # Cambia la ruta por la de tu imagen
+config_imgs = ImageTk.PhotoImage(config_img_original)
+# Agregar la imagen al Canvas con un tag
+config_image_item = canvas2.create_image(20, 470, image=config_imgs, anchor="nw", tags=("config_img","config_clickable"))
+# Agregar el texto al Canvas con el mismo tag
+texto_canvas_config = canvas2.create_text(70, 490, text="Configuración", anchor="w", fill="white", font=("Arial", 18, "bold"), tags=("config_text","config_clickable"))
+# Establecer cursor tipo "manito" al pasar sobre los elementos con el tag
+canvas2.tag_bind("config_clickable", "<Enter>", lambda e: canvas2.config(cursor="hand2"))
+canvas2.tag_bind("config_clickable", "<Leave>", lambda e: canvas2.config(cursor="hand2"))
+canvas2.tag_bind("config_clickable", "<Button-1>", lambda e: mostrar_pestaña("configuracion"))
+
 
 proveedores_imgA = Image.open("Img/Img-9.png")  # Cambia la ruta por la de tu imagen
 proveedores_photoA = ImageTk.PhotoImage(proveedores_imgA)
-canvas2.create_image(150, 80, image=proveedores_photoA)
+canva2_logo = canvas2.create_image(150, 80, image=proveedores_photoA)
 canvas2.image = proveedores_photoA
 canvas2.create_text(70, 180, text="Menú", fill="white", font=("Helvetica", 30, "bold"))
 canvas2.create_rectangle(20, 200, 275, 203, fill="#FFFFFF", outline="#FFFFFF")
@@ -776,6 +984,8 @@ canvas2.create_rectangle(20, 200, 275, 203, fill="#FFFFFF", outline="#FFFFFF")
 canvas3 = tk.Canvas(root, width=1000, height=35, highlightthickness=0, bg="#292B2B")
 canvas3.place(x=312, y=17)  # Coordenadas específicas dentro de la main_page
 dibujar_rectangulo_redondeado(canvas3, 0, 0, 1000, 35, r=10, color="#3A3939")
+
+canvas2.tag_bind(canva2_logo, "<Button-1>", lambda e: mostrar_pestaña("dashboard"))
 
 # Texto inicial en el centro del Canvas
 texto_id = canvas3.create_text(500, 17.5, text="", fill="white", font=("Helvetica", 16, "bold"))
@@ -839,6 +1049,8 @@ products_btn1.config(cursor="hand2")  # Cursor estilo "manito"
 products_btn.tag_bind(products_rectangulo, "<Button-1>", lambda e: mostrar_pestaña("productos"))
 products_btn1.tag_bind(products_rectangulo1, "<Button-1>", lambda e: mostrar_pestaña("productos"))
 products_btn1.tag_bind(products_img1, "<Button-1>", lambda e: mostrar_pestaña("productos"))
+products_btn.tag_bind(texto_canvas, "<Button-1>", lambda e: mostrar_pestaña("productos"))
+products_btn.tag_bind(titulo_canvas, "<Button-1>", lambda e: mostrar_pestaña("productos"))
 
 # Canvas 7: Botoneras
 utility_btn = tk.Canvas(main_page, width=280, height=100, highlightthickness=0, bg="#232323")
@@ -914,9 +1126,11 @@ transacciones_btn.config(cursor="hand2")  # Cursor estilo "manito"
 transacciones_btn1.config(cursor="hand2")  # Cursor estilo "manito"
 
 # Asociar el clic sobre el client_btn con la función del rectángulo
-transacciones_btn.tag_bind(transacciones_rectangulo, "<Button-1>", on_rectangle_click1)
-transacciones_btn1.tag_bind(transacciones_rectangulo1, "<Button-1>", on_rectangle_click1)
-transacciones_btn1.tag_bind(transacciones_img1, "<Button-1>", on_rectangle_click1)
+transacciones_btn.tag_bind(transacciones_rectangulo, "<Button-1>", lambda e: mostrar_pestaña("transacciones"))
+transacciones_btn1.tag_bind(transacciones_rectangulo1, "<Button-1>", lambda e: mostrar_pestaña("transacciones"))
+transacciones_btn1.tag_bind(transacciones_img1, "<Button-1>", lambda e: mostrar_pestaña("transacciones"))
+transacciones_btn.tag_bind(texto_canvas, "<Button-1>", lambda e: mostrar_pestaña("transacciones"))
+transacciones_btn.tag_bind(titulo_canvas, "<Button-1>", lambda e: mostrar_pestaña("transacciones"))
 
 # Canvas 11: Botoneras
 reg_shop_btn = tk.Canvas(main_page, width=280, height=100, highlightthickness=0, bg="#232323")
@@ -942,6 +1156,8 @@ reg_shop_btn1.config(cursor="hand2")  # Cursor estilo "manito"
 reg_shop_btn.tag_bind(reg_shop_rectangulo, "<Button-1>", lambda e: abrir_ventana_compras())
 reg_shop_btn1.tag_bind(reg_shop_rectangulo1, "<Button-1>", lambda e: abrir_ventana_compras())
 reg_shop_btn1.tag_bind(reg_shop_img1, "<Button-1>", lambda e: abrir_ventana_compras())
+reg_shop_btn.tag_bind(texto1_reg_shop, "<Button-1>", lambda e: abrir_ventana_compras())
+reg_shop_btn.tag_bind(texto2_reg_shop, "<Button-1>", lambda e: abrir_ventana_compras())
 
 # Canvas 12: Botoneras
 reg_sell_btn = tk.Canvas(main_page, width=280, height=100, highlightthickness=0, bg="#232323")
@@ -967,14 +1183,178 @@ reg_sell_btn1.config(cursor="hand2")  # Cursor estilo "manito"
 reg_sell_btn.tag_bind(reg_sell_rectangulo, "<Button-1>", lambda e: abrir_ventana_ventas())
 reg_sell_btn1.tag_bind(reg_sell_rectangulo1, "<Button-1>", lambda e: abrir_ventana_ventas())
 reg_sell_btn1.tag_bind(reg_sell_img1, "<Button-1>", lambda e: abrir_ventana_ventas())
+reg_sell_btn.tag_bind(texto1_reg_sell, "<Button-1>", lambda e: abrir_ventana_ventas())
+reg_sell_btn.tag_bind(texto2_reg_sell, "<Button-1>", lambda e: abrir_ventana_ventas())
 
-main_page.after(100, get_clientes)  # Ejecuta la función 100ms después de iniciar la main_page
-main_page.after(100, get_proveedor)  # Ejecuta la función 100ms después de iniciar la main_page
-main_page.after(100, get_productos)  # Ejecuta la función 100ms después de iniciar la main_page
-main_page.after(100, get_compras)  # Ejecuta la función 100ms después de iniciar la main_page
-main_page.after(100, get_ventas)  # Ejecuta la función 100ms después de iniciar la main_page
-main_page.after(100, get_transacciones)  # Ejecuta la función 100ms después de iniciar la main_page
-main_page.after(100, get_utilidad)  # Ejecuta la función 100ms después de iniciar la main_page
+
+
+# PÁGINA DE CONFIGURACIÓN
+
+# Canvas 1: Botoneras
+securitycopy_btn = tk.Canvas(config_page, width=280, height=100, highlightthickness=0, bg="#232323")
+securitycopy_btn.place(x=352, y=234)  # Colocado justo debajo del canvas1
+securitycopy_rectangulo = dibujar_rectangulo_redondeado(securitycopy_btn, 0, 0, 280, 100, r=20, color="#3D8AF7")
+securitycopy_btn1 = tk.Canvas(config_page, width=100, height=100, highlightthickness=0, bg="#1464F6")
+securitycopy_btn1.place(x=352, y=234)  # Colocado justo debajo del canvas1
+securitycopy_rectangulo1 = securitycopy_btn1.create_rectangle(0, 0, 100, 100, fill="#1464F6", outline="#1464F6")
+
+# Agregar texto dentro del rectángulo
+titulo_canvas_securitycopy = securitycopy_btn.create_text(108, 30, text="Copia", fill="white", font=("Arial", 18, "bold"), anchor="w")
+texto_canvas_securitycopy = securitycopy_btn.create_text(108, 55, text="De Seguridad", fill="white", font=("Arial", 16), anchor="w")
+
+securitycopy_img = Image.open("Img/Img-10.png")  # Cambia la ruta por la de tu imagen
+securitycopy_photo = ImageTk.PhotoImage(securitycopy_img)
+securitycopy_img1 = securitycopy_btn1.create_image(50, 50, image=securitycopy_photo)
+securitycopy_btn1.image = securitycopy_photo
+
+securitycopy_btn.config(cursor="hand2")  # Cursor estilo "manito"
+securitycopy_btn1.config(cursor="hand2")  # Cursor estilo "manito"
+
+# Asociar el clic sobre el client_btn con la función del rectángulo
+securitycopy_btn.tag_bind(securitycopy_rectangulo, "<Button-1>", lambda e: hacer_copia_seguridad())
+securitycopy_btn1.tag_bind(securitycopy_rectangulo1, "<Button-1>", lambda e: hacer_copia_seguridad())
+securitycopy_btn1.tag_bind(securitycopy_img1, "<Button-1>", lambda e: hacer_copia_seguridad())
+securitycopy_btn.tag_bind(texto_canvas_securitycopy, "<Button-1>", lambda e: hacer_copia_seguridad())
+securitycopy_btn.tag_bind(titulo_canvas_securitycopy, "<Button-1>", lambda e: hacer_copia_seguridad())
+
+# Canvas 2: Botoneras
+resetsecuritycopy_btn = tk.Canvas(config_page, width=280, height=100, highlightthickness=0, bg="#232323")
+resetsecuritycopy_btn.place(x=352, y=365)  # Colocado justo debajo del canvas1
+resetsecuritycopy_rectangulo = dibujar_rectangulo_redondeado(resetsecuritycopy_btn, 0, 0, 280, 100, r=20, color="#3D8AF7")
+resetsecuritycopy_btn1 = tk.Canvas(config_page, width=100, height=100, highlightthickness=0, bg="#1464F6")
+resetsecuritycopy_btn1.place(x=352, y=365)  # Colocado justo debajo del canvas1
+resetsecuritycopy_rectangulo1 = resetsecuritycopy_btn1.create_rectangle(0, 0, 100, 100, fill="#1464F6", outline="#1464F6")
+
+# Agregar texto dentro del rectángulo
+titulo_canvas_resetsecuritycopy = resetsecuritycopy_btn.create_text(108, 30, text="Restaurar", fill="white", font=("Arial", 18, "bold"), anchor="w")
+texto_canvas_resetsecuritycopy = resetsecuritycopy_btn.create_text(108, 52, text="Copia de", fill="white", font=("Arial", 16), anchor="w")
+texto_canvas2_resetsecuritycopy = resetsecuritycopy_btn.create_text(108, 72, text="Seguridad", fill="white", font=("Arial", 16), anchor="w")
+
+resetsecuritycopy_img = Image.open("Img/Img-11.png")  # Cambia la ruta por la de tu imagen
+resetsecuritycopy_photo = ImageTk.PhotoImage(resetsecuritycopy_img)
+resetsecuritycopy_img1 = resetsecuritycopy_btn1.create_image(50, 50, image=resetsecuritycopy_photo)
+resetsecuritycopy_btn1.image = resetsecuritycopy_photo
+
+resetsecuritycopy_btn.config(cursor="hand2")  # Cursor estilo "manito"
+resetsecuritycopy_btn1.config(cursor="hand2")  # Cursor estilo "manito"
+
+# Asociar el clic sobre el client_btn con la función del rectángulo
+resetsecuritycopy_btn.tag_bind(resetsecuritycopy_rectangulo, "<Button-1>", lambda e: restaurar_copia_seguridad())
+resetsecuritycopy_btn1.tag_bind(resetsecuritycopy_rectangulo1, "<Button-1>", lambda e: restaurar_copia_seguridad())
+resetsecuritycopy_btn1.tag_bind(resetsecuritycopy_img1, "<Button-1>", lambda e: restaurar_copia_seguridad())
+resetsecuritycopy_btn.tag_bind(texto_canvas_resetsecuritycopy, "<Button-1>", lambda e: restaurar_copia_seguridad())
+resetsecuritycopy_btn.tag_bind(texto_canvas2_resetsecuritycopy, "<Button-1>", lambda e: restaurar_copia_seguridad())
+resetsecuritycopy_btn.tag_bind(titulo_canvas_resetsecuritycopy, "<Button-1>", lambda e: restaurar_copia_seguridad())
+
+# Canvas 3: Botoneras
+resetbd = tk.Canvas(config_page, width=280, height=100, highlightthickness=0, bg="#232323")
+resetbd.place(x=672, y=234)  # Colocado justo debajo del canvas1
+securitycopy_rectangulo = dibujar_rectangulo_redondeado(resetbd, 0, 0, 280, 100, r=20, color="#FFC581")
+resetbd1 = tk.Canvas(config_page, width=100, height=100, highlightthickness=0, bg="#FFB253")
+resetbd1.place(x=672, y=234)  # Colocado justo debajo del canvas1
+securitycopy_rectangulo1 = resetbd1.create_rectangle(0, 0, 100, 100, fill="#FFB253", outline="#FFB253")
+
+# Agregar texto dentro del rectángulo
+titulo_canvas_resetbd = resetbd.create_text(108, 30, text="Resetear", fill="white", font=("Arial", 18, "bold"), anchor="w")
+texto_canvas_resetbd = resetbd.create_text(108, 55, text="Base de Datos", fill="white", font=("Arial", 16), anchor="w")
+
+securitycopy_img = Image.open("Img/Img-12.png")  # Cambia la ruta por la de tu imagen
+securitycopy_photo = ImageTk.PhotoImage(securitycopy_img)
+securitycopy_img1 = resetbd1.create_image(50, 50, image=securitycopy_photo)
+resetbd1.image = securitycopy_photo
+
+resetbd.config(cursor="hand2")  # Cursor estilo "manito"
+resetbd1.config(cursor="hand2")  # Cursor estilo "manito"
+
+# Asociar el clic sobre el client_btn con la función del rectángulo
+resetbd.tag_bind(securitycopy_rectangulo, "<Button-1>", lambda e: limpiar_base_datos())
+resetbd1.tag_bind(securitycopy_rectangulo1, "<Button-1>", lambda e: limpiar_base_datos())
+resetbd1.tag_bind(securitycopy_img1, "<Button-1>", lambda e: limpiar_base_datos())
+resetbd.tag_bind(texto_canvas_resetbd, "<Button-1>", lambda e: limpiar_base_datos())
+resetbd.tag_bind(titulo_canvas_resetbd, "<Button-1>", lambda e: limpiar_base_datos())
+
+# Canvas 4: Botoneras
+generarrepportes = tk.Canvas(config_page, width=280, height=100, highlightthickness=0, bg="#232323")
+generarrepportes.place(x=672, y=365)  # Colocado justo debajo del canvas1
+securitycopy_rectangulo = dibujar_rectangulo_redondeado(generarrepportes, 0, 0, 280, 100, r=20, color="#C0C0C0")
+generarrepportes1 = tk.Canvas(config_page, width=100, height=100, highlightthickness=0, bg="#AAAAAA")
+generarrepportes1.place(x=672, y=365)  # Colocado justo debajo del canvas1
+securitycopy_rectangulo1 = generarrepportes1.create_rectangle(0, 0, 100, 100, fill="#AAAAAA", outline="#AAAAAA")
+
+# Agregar texto dentro del rectángulo
+titulo_canvas_generarrepportes = generarrepportes.create_text(108, 30, text="Generar", fill="white", font=("Arial", 18, "bold"), anchor="w")
+texto_canvas_generarrepportes = generarrepportes.create_text(108, 55, text="Reportes", fill="white", font=("Arial", 16), anchor="w")
+
+securitycopy_img = Image.open("Img/Img-13.png")  # Cambia la ruta por la de tu imagen
+securitycopy_photo = ImageTk.PhotoImage(securitycopy_img)
+securitycopy_img1 = generarrepportes1.create_image(50, 50, image=securitycopy_photo)
+generarrepportes1.image = securitycopy_photo
+
+generarrepportes.config(cursor="hand2")  # Cursor estilo "manito"
+generarrepportes1.config(cursor="hand2")  # Cursor estilo "manito"
+
+# Asociar el clic sobre el client_btn con la función del rectángulo
+generarrepportes.tag_bind(securitycopy_rectangulo, "<Button-1>", lambda e: on_click())
+generarrepportes1.tag_bind(securitycopy_rectangulo1, "<Button-1>", lambda e: on_click())
+generarrepportes1.tag_bind(securitycopy_img1, "<Button-1>", lambda e: on_click())
+generarrepportes.tag_bind(texto_canvas_generarrepportes, "<Button-1>", lambda e: on_click())
+generarrepportes.tag_bind(titulo_canvas_generarrepportes, "<Button-1>", lambda e: on_click())
+
+# Canvas 5: Botoneras
+exportbd = tk.Canvas(config_page, width=280, height=100, highlightthickness=0, bg="#232323")
+exportbd.place(x=992, y=234)  # Colocado justo debajo del canvas1
+securitycopy_rectangulo = dibujar_rectangulo_redondeado(exportbd, 0, 0, 280, 100, r=20, color="#FF8A84")
+exportbd1 = tk.Canvas(config_page, width=100, height=100, highlightthickness=0, bg="#FF5D55")
+exportbd1.place(x=992, y=234)  # Colocado justo debajo del canvas1
+securitycopy_rectangulo1 = exportbd1.create_rectangle(0, 0, 100, 100, fill="#FF5D55", outline="#FF5D55")
+
+# Agregar texto dentro del rectángulo
+titulo_canvas_exportbd = exportbd.create_text(108, 30, text="Exportar", fill="white", font=("Arial", 18, "bold"), anchor="w")
+texto_canvas_exportbd = exportbd.create_text(108, 55, text="Base de Datos", fill="white", font=("Arial", 16), anchor="w")
+
+securitycopy_img = Image.open("Img/Img-14.png")  # Cambia la ruta por la de tu imagen
+securitycopy_photo = ImageTk.PhotoImage(securitycopy_img)
+securitycopy_img1 = exportbd1.create_image(50, 50, image=securitycopy_photo)
+exportbd1.image = securitycopy_photo
+
+exportbd.config(cursor="hand2")  # Cursor estilo "manito"
+exportbd1.config(cursor="hand2")  # Cursor estilo "manito"
+
+# Asociar el clic sobre el client_btn con la función del rectángulo
+exportbd.tag_bind(securitycopy_rectangulo, "<Button-1>", lambda e: exportar_bd_excel())
+exportbd1.tag_bind(securitycopy_rectangulo1, "<Button-1>", lambda e: exportar_bd_excel())
+exportbd1.tag_bind(securitycopy_img1, "<Button-1>", lambda e: exportar_bd_excel())
+exportbd.tag_bind(texto_canvas_exportbd, "<Button-1>", lambda e: exportar_bd_excel())
+exportbd.tag_bind(titulo_canvas_exportbd, "<Button-1>", lambda e: exportar_bd_excel())
+
+# Canvas 6: Botoneras
+importbd = tk.Canvas(config_page, width=280, height=100, highlightthickness=0, bg="#232323")
+importbd.place(x=992, y=365)  # Colocado justo debajo del canvas1
+securitycopy_rectangulo = dibujar_rectangulo_redondeado(importbd, 0, 0, 280, 100, r=20, color="#AEDD94")
+importbd1 = tk.Canvas(config_page, width=100, height=100, highlightthickness=0, bg="#92D36E")
+importbd1.place(x=992, y=365)  # Colocado justo debajo del canvas1
+securitycopy_rectangulo1 = importbd1.create_rectangle(0, 0, 100, 100, fill="#92D36E", outline="#92D36E")
+
+# Agregar texto dentro del rectángulo
+titulo_canvas_importbd = importbd.create_text(108, 30, text="Importar", fill="white", font=("Arial", 18, "bold"), anchor="w")
+texto_canvas_importbd = importbd.create_text(108, 55, text="Base de Datos", fill="white", font=("Arial", 16), anchor="w")
+
+securitycopy_img = Image.open("Img/Img-15.png")  # Cambia la ruta por la de tu imagen
+securitycopy_photo = ImageTk.PhotoImage(securitycopy_img)
+securitycopy_img1 = importbd1.create_image(50, 50, image=securitycopy_photo)
+importbd1.image = securitycopy_photo
+
+importbd.config(cursor="hand2")  # Cursor estilo "manito"
+importbd1.config(cursor="hand2")  # Cursor estilo "manito"
+
+# Asociar el clic sobre el client_btn con la función del rectángulo
+importbd.tag_bind(securitycopy_rectangulo, "<Button-1>", lambda e: importar_bd_excel())
+importbd1.tag_bind(securitycopy_rectangulo1, "<Button-1>", lambda e: importar_bd_excel())
+importbd1.tag_bind(securitycopy_img1, "<Button-1>", lambda e: importar_bd_excel())
+importbd.tag_bind(texto_canvas_importbd, "<Button-1>", lambda e: importar_bd_excel())
+importbd.tag_bind(titulo_canvas_importbd, "<Button-1>", lambda e: importar_bd_excel())
+
+actualizar_contenido()
 
 # Iniciar la actualización del reloj
 actualizar_reloj(canvas3, texto_id)
