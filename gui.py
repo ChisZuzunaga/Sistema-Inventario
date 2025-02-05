@@ -28,7 +28,7 @@ cursor = conexion.cursor()
 # Crear los frames (simulando pestañas)
 main_page = tk.Frame(root, bg="#232323")  # Pestaña 1
 clientes_page = tk.Frame(root, bg="#32CD32")  # Pestaña 2
-productos_page = tk.Frame(root, bg="#1E90FF")  # Pestaña 3
+productos_page = tk.Frame(root, bg="#232323")  # Pestaña 3
 transac_page = tk.Frame(root, bg="#BEDFAA")  # Pestaña 4
 reports_page = tk.Frame(root, bg="#AAAAAA")  # Pestaña 5
 config_page = tk.Frame(root, bg="#242224")  # Pestaña 6
@@ -93,7 +93,7 @@ def actualizar_contenido():
     main_page.after(100, get_ventas)  # Ejecuta la función 100ms después de iniciar la main_page
     main_page.after(100, get_transacciones)  # Ejecuta la función 100ms después de iniciar la main_page
     main_page.after(100, get_utilidad)  # Ejecuta la función 100ms después de iniciar la main_page
-
+    mostrar_productos()
 # Función para hacer una copia de seguridad
 def hacer_copia_seguridad():
     try:
@@ -528,10 +528,10 @@ def agregar_personas(campos_compras):
         messagebox.showerror("Error", f"No se pudo agregar a la persona: {e}")
 
 def abrir_ventana_personas_proveedor():
-    ventana_personas = tk.Toplevel(root)
-    ventana_personas.title("Agregar Proveedor")
-    ventana_personas.geometry("400x300")
-    ventana_personas.configure(bg="#2A2B2A")
+    ventana_personas_prov = tk.Toplevel(root)
+    ventana_personas_prov.title("Agregar Proveedor")
+    ventana_personas_prov.geometry("400x300")
+    ventana_personas_prov.configure(bg="#2A2B2A")
 
     # Diccionario para almacenar los campos_compras de entrada
     campos_compras = {}
@@ -539,7 +539,7 @@ def abrir_ventana_personas_proveedor():
     # Etiqueta y campo para Cantidad
 
     # Entradas para agregar producto
-    frame_entrada = tk.Frame(ventana_personas)
+    frame_entrada = tk.Frame(ventana_personas_prov)
     frame_entrada.pack(pady=10)
     frame_entrada.configure(bg="#2A2B2A")
 
@@ -562,18 +562,18 @@ def abrir_ventana_personas_proveedor():
     campos_compras['rol'].grid(row=3, column=1, padx=5, pady=5)
 
     # Botón para agregar producto
-    btn_agregar = tk.Button(frame_entrada, text="Agregar Proveedor", font=('Arial', 12), bg="#1F68A3", fg="white", command=lambda: agregar_personas(campos_compras))
+    btn_agregar = tk.Button(frame_entrada, text="Agregar Proveedor", font=('Arial', 12), bg="#1F68A3", fg="white", command=lambda: (agregar_personas(campos_compras), ventana_personas_prov.destroy()))
     btn_agregar.grid(row=4, column=0, columnspan=2, pady=(50,0))
 
     # Botón para cerrar ventana
-    btn_cerrar = tk.Button(ventana_personas, text="Cerrar", font=('Arial', 12), bg="#1F68A3", fg="white", command=ventana_personas.destroy)
+    btn_cerrar = tk.Button(ventana_personas_prov, text="Cerrar", font=('Arial', 12), bg="#1F68A3", fg="white", command=ventana_personas_prov.destroy)
     btn_cerrar.pack(pady=0)
 
 def abrir_ventana_personas_cliente():
-    ventana_personas = tk.Toplevel(root)
-    ventana_personas.title("Agregar Cliente")
-    ventana_personas.geometry("400x300")
-    ventana_personas.configure(bg="#2A2B2A")
+    ventana_personas_clie = tk.Toplevel(root)
+    ventana_personas_clie.title("Agregar Cliente")
+    ventana_personas_clie.geometry("400x300")
+    ventana_personas_clie.configure(bg="#2A2B2A")
 
     # Diccionario para almacenar los campos_compras de entrada
     campos_compras = {}
@@ -581,7 +581,7 @@ def abrir_ventana_personas_cliente():
     # Etiqueta y campo para Cantidad
 
     # Entradas para agregar producto
-    frame_entrada = tk.Frame(ventana_personas)
+    frame_entrada = tk.Frame(ventana_personas_clie)
     frame_entrada.pack(pady=10)
     frame_entrada.configure(bg="#2A2B2A")
 
@@ -604,11 +604,11 @@ def abrir_ventana_personas_cliente():
     campos_compras['rol'].grid(row=3, column=1, padx=5, pady=5)
 
     # Botón para agregar producto
-    btn_agregar = tk.Button(frame_entrada, text="Agregar Cliente", font=('Arial', 12), bg="#1F68A3", fg="white", command=lambda: agregar_personas(campos_compras))
+    btn_agregar = tk.Button(frame_entrada, text="Agregar Cliente", font=('Arial', 12), bg="#1F68A3", fg="white", command=lambda: (agregar_personas(campos_compras), ventana_personas_clie.destroy()))
     btn_agregar.grid(row=4, column=0, columnspan=2, pady=(50,0))
 
     # Botón para cerrar ventana
-    btn_cerrar = tk.Button(ventana_personas, text="Cerrar", font=('Arial', 12), bg="#1F68A3", fg="white", command=ventana_personas.destroy)
+    btn_cerrar = tk.Button(ventana_personas_clie, text="Cerrar", font=('Arial', 12), bg="#1F68A3", fg="white", command=ventana_personas_clie.destroy)
     btn_cerrar.pack(pady=0)
 
 def agregar_transaccion_compras(campos_compras, productos_dict, proveedores_dict):
@@ -631,16 +631,29 @@ def agregar_transaccion_compras(campos_compras, productos_dict, proveedores_dict
         # Insertar en la base de datos
         conn = sqlite3.connect(DB_NAME)
         cursor = conn.cursor()
+
+        # Obtener stock actual del producto
+        cursor.execute("SELECT Cantidad FROM Productos WHERE ID_Producto = ?", (producto_id,))
+        resultado = cursor.fetchone()
+        
+        stock_actual = resultado[0]
+        nuevo_stock = stock_actual + cantidad
+
         cursor.execute("""
             INSERT INTO Transaccion (Persona_ID, Producto_ID, Fecha, Accion, Cantidad, Precio)
             VALUES (?, ?, DATE('now'), ?, ?, ?)
         """, (proveedor_rut, producto_id, accion, cantidad, precio))
+
+        # Actualizar el stock en la tabla Producto
+        cursor.execute("UPDATE Productos SET Cantidad = ? WHERE ID_Producto = ?", (nuevo_stock, producto_id))
+        
+        # Guardar cambios y cerrar conexión
         conn.commit()
         conn.close()
         actualizar_contenido()
-        messagebox.showinfo("Éxito", "Compra registrada exitosamente.")
+        messagebox.showinfo("Éxito", "Transacción registrada exitosamente y stock actualizado.")
     except Exception as e:
-        messagebox.showerror("Error", f"No se pudo registrar la compra: {e}")
+        messagebox.showerror("Error", f"No se pudo registrar la transacción: {e}")
 
 def agregar_transaccion_ventas(campos_compras, productos_dict, clientes_dict):
     try:
@@ -662,16 +675,35 @@ def agregar_transaccion_ventas(campos_compras, productos_dict, clientes_dict):
         # Insertar en la base de datos
         conn = sqlite3.connect(DB_NAME)
         cursor = conn.cursor()
+
+         # Obtener stock actual del producto
+        cursor.execute("SELECT Cantidad FROM Productos WHERE ID_Producto = ?", (producto_id,))
+        resultado = cursor.fetchone()
+        
+        stock_actual = resultado[0]
+
+        # Verificar que haya suficiente stock para la venta
+        if stock_actual < cantidad:
+            raise ValueError("No hay suficiente stock para realizar la venta.")
+
+        # Calcular nuevo stock
+        nuevo_stock = stock_actual - cantidad
+
         cursor.execute("""
             INSERT INTO Transaccion (Persona_ID, Producto_ID, Fecha, Accion, Cantidad, Precio)
             VALUES (?, ?, DATE('now'), ?, ?, ?)
         """, (cliente_rut, producto_id, accion, cantidad, precio))
+        
+        # Actualizar stock del producto
+        cursor.execute("UPDATE Productos SET Cantidad = ? WHERE ID_Producto = ?", (nuevo_stock, producto_id))
+
+        # Guardar cambios y cerrar conexión
         conn.commit()
         conn.close()
         actualizar_contenido()
-        messagebox.showinfo("Éxito", "Venta registrada exitosamente.")
+        messagebox.showinfo("Éxito", "Venta registrada y stock actualizado.")
     except Exception as e:
-        messagebox.showerror("Error", f"No se pudo registrar la venta: {e}")
+        messagebox.showerror("Error", f"No se pudo registrar la transacción: {e}")
 
 def abrir_ventana_compras():
     ventana_compras = tk.Toplevel(root)
@@ -773,7 +805,7 @@ def abrir_ventana_compras():
     btn_agregar.grid(row=9, column=0, columnspan=2, pady=(50,0))
 
     # Botón para cerrar ventana
-    btn_cerrar = tk.Button(ventana_compras, text="Aceptar", font=('Arial', 12), bg="#1F68A3", fg="white", command=lambda: agregar_transaccion_compras(campos_compras, productos_dict, proveedores_dict))
+    btn_cerrar = tk.Button(ventana_compras, text="Aceptar", font=('Arial', 12), bg="#1F68A3", fg="white", command=lambda: (agregar_transaccion_compras(campos_compras, productos_dict, proveedores_dict), ventana_compras.destroy()))
     btn_cerrar.pack()
 
 def abrir_ventana_ventas():
@@ -876,9 +908,177 @@ def abrir_ventana_ventas():
     btn_agregar.grid(row=9, column=0, columnspan=2, pady=(50,0))
 
     # Botón para cerrar ventana
-    btn_cerrar = tk.Button(ventana_ventas, text="Aceptar", font=('Arial', 12), bg="#1F68A3", fg="white", command=lambda: agregar_transaccion_ventas(campos_compras, productos_dict, clientes_dict))
+    btn_cerrar = tk.Button(ventana_ventas, text="Aceptar", font=('Arial', 12), bg="#1F68A3", fg="white", command=lambda: (agregar_transaccion_ventas(campos_compras, productos_dict, clientes_dict), ventana_ventas.destroy()))
     btn_cerrar.pack()
 
+def mostrar_productos():
+    conexion = sqlite3.connect(DB_NAME)
+    cursor = conexion.cursor()
+    cursor.execute("SELECT * FROM Productos")
+    productos = cursor.fetchall()
+    conexion.close()
+
+    # Limpiar la tabla antes de agregar los nuevos productos
+    for fila in tabla.get_children():
+        tabla.delete(fila)
+
+    # Insertar los productos
+    for producto in productos:
+        item = tabla.insert("", tk.END, values=producto)
+        if producto[3] == "No Disponible":
+            tabla.item(item, tags=("highlight",))
+    
+    # Para mantener el fondo consistente, agregamos una fila en blanco con el color de fondo.
+    # Se calcula el número total de filas necesarias para ocupar el espacio visible de la tabla.
+    filas_actuales = len(productos)
+    filas_necesarias = int(tabla.winfo_height() / 21)  # Estimar el número de filas necesarias basado en el tamaño de la tabla
+    filas_a_agregar = filas_necesarias - filas_actuales
+
+    # Agregar filas vacías sin contenido para llenar el espacio restante
+    for _ in range(filas_a_agregar):
+        tabla.insert("", tk.END, values=("", "", "", "", ""))  # Las filas vacías también tendrán el color de fondo de la tabla
+
+    # Cambiar el color de fondo de todas las celdas que quedan vacías en la tabla
+    for fila in tabla.get_children():
+        for col in tabla["columns"]:
+            tabla.item(fila, values=tabla.item(fila, "values")[0:])  # Asegura que los valores de las celdas estén consistentes
+
+
+def obtener_productos_filtrados(filtro, busqueda):
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+
+    # Verificar el filtro y crear la consulta SQL correspondiente
+    if filtro == "ID":
+        cursor.execute("SELECT * FROM Productos WHERE ID_Producto LIKE ?", (f"%{busqueda}%",))
+    elif filtro == "Nombre":
+        cursor.execute("SELECT * FROM Productos WHERE Nombre LIKE ?", (f"%{busqueda}%",))
+    elif filtro == "Cantidad":
+        cursor.execute("SELECT * FROM Productos WHERE Cantidad LIKE ?", (f"%{busqueda}%",))
+    elif filtro == "Estado":
+        cursor.execute("SELECT * FROM Productos WHERE Estado = ?", (f'{busqueda}',))
+    elif filtro == "Tipo":
+        cursor.execute("SELECT * FROM Productos WHERE Tipo LIKE ?", (f"%{busqueda}%",))
+
+    # Recuperar los resultados
+    productos = cursor.fetchall()
+
+    # Cerrar la conexión
+    conn.close()
+
+    # Limpiar la tabla
+    for fila in tabla.get_children():
+        tabla.delete(fila)
+
+    # Insertar los productos filtrados
+    for producto in productos:
+        tabla.insert("", tk.END, values=producto)
+
+def cargar_registro_seleccionado(event):
+    
+    # Obtener el ID del producto seleccionado en la tabla
+    item = tabla.selection()[0]  # Obtener la primera selección
+    producto = tabla.item(item)['values']  # Obtener los valores de la fila seleccionada
+
+    # Rellenar los campos con los valores del producto seleccionado
+    input_productos_id.delete(0, tk.END)
+    input_productos_id.insert(0, producto[0])  # ID_Producto
+
+    input_productos_nombre.delete(0, tk.END)
+    input_productos_nombre.insert(0, producto[1])  # Nombre
+
+    input_productos_tipo.delete(0, tk.END)
+    input_productos_tipo.insert(0, producto[4])  # Tipo
+
+    input_productos_cantidad.delete(0, tk.END)
+    input_productos_cantidad.insert(0, producto[2])  # Cantidad
+
+    option_productos_estado.set(producto[3])  # Estado
+
+def agregar_nuevo():
+    # Verificar que todos los campos estén completos antes de agregar el producto
+    nombre = input_productos_nombre.get()
+    tipo = input_productos_tipo.get()
+    cantidad = input_productos_cantidad.get()
+    estado = option_productos_estado.get()
+
+    if not nombre or not tipo or not cantidad or estado == "Seleccione un Estado":
+        tk.messagebox.showwarning("Campos incompletos", "Por favor, complete todos los campos.")
+        return  # No proceder si algún campo está vacío
+
+    # Generar una nueva ID única para el producto
+    conexion = sqlite3.connect(DB_NAME)
+    cursor = conexion.cursor()
+    cursor.execute("SELECT MAX(ID_Producto) FROM Productos")
+    max_id = cursor.fetchone()[0] or 0  # Si no hay productos, max_id será 0
+    new_id = max_id + 1
+    conexion.close()
+
+    # Insertar el nuevo registro
+    conexion = sqlite3.connect(DB_NAME)
+    cursor = conexion.cursor()
+    cursor.execute("INSERT INTO Productos (ID_Producto, Nombre, Cantidad, Estado, Tipo) VALUES (?, ?, ?, ?, ?)",
+                   (new_id, nombre, cantidad, estado, tipo))
+    conexion.commit()
+    conexion.close()
+
+    # Limpiar los campos después de agregar
+    limpiar_campos()
+    mostrar_productos()
+
+def actualizar_registro():
+    # Obtener los datos del formulario
+    id_producto = input_productos_id.get()
+    nombre = input_productos_nombre.get()
+    tipo = input_productos_tipo.get()
+    cantidad = input_productos_cantidad.get()
+    estado = option_productos_estado.get()
+
+    # Verificar que todos los campos estén completos antes de actualizar el registro
+    if not nombre or not tipo or not cantidad or estado == "Seleccione un Estado":
+        tk.messagebox.showwarning("Campos incompletos", "Por favor, complete todos los campos.")
+        return  # No proceder si algún campo está vacío
+
+    # Actualizar el registro correspondiente en la base de datos
+    conexion = sqlite3.connect(DB_NAME)
+    cursor = conexion.cursor()
+    cursor.execute("""
+        UPDATE Productos SET Nombre = ?, Cantidad = ?, Estado = ?, Tipo = ? WHERE ID_Producto = ?
+    """, (nombre, cantidad, estado, tipo, id_producto))
+    conexion.commit()
+    conexion.close()
+
+    # Limpiar los campos después de actualizar
+    limpiar_campos()
+    mostrar_productos()
+
+def eliminar_registro():
+    # Obtener la ID del producto que se va a eliminar
+    id_producto = input_productos_id.get()
+
+    # Cambiar el estado de disponible a no disponible
+    conexion = sqlite3.connect(DB_NAME)
+    cursor = conexion.cursor()
+    cursor.execute("""
+        UPDATE Productos SET Estado = ? WHERE ID_Producto = ?
+    """, ("No Disponible", id_producto))
+    conexion.commit()
+    conexion.close()
+
+    # Limpiar los campos después de eliminar
+    limpiar_campos()
+    mostrar_productos()
+
+def limpiar_campos():
+    # Limpiar todos los campos de entrada
+    input_productos_id.config(state="normal")  # Habilitar el campo ID
+    input_productos_id.delete(0, tk.END)
+
+    input_productos_nombre.delete(0, tk.END)
+    input_productos_tipo.delete(0, tk.END)
+    input_productos_cantidad.delete(0, tk.END)
+    option_productos_estado.set("Seleccione un Estado")
+    mostrar_productos()
 
 # Canvas 1: Barra superior
 canvas1 = tk.Canvas(root, width=1340, height=70, highlightthickness=0, bg="#292B2B")
@@ -1354,8 +1554,127 @@ importbd1.tag_bind(securitycopy_img1, "<Button-1>", lambda e: importar_bd_excel(
 importbd.tag_bind(texto_canvas_importbd, "<Button-1>", lambda e: importar_bd_excel())
 importbd.tag_bind(titulo_canvas_importbd, "<Button-1>", lambda e: importar_bd_excel())
 
-actualizar_contenido()
+#Contenedor de los detalles del producto
+pp_dta = tk.Canvas(productos_page, width=380, height=470, highlightthickness=0, bg="#232323")
+pp_dta.place(x=325, y=110)
+dibujar_rectangulo_redondeado(pp_dta, 0, 0, 380, 470, r=10, color="#2A2B2A")
 
+pp_dta_2 = tk.Canvas(productos_page, width=300, height=36, highlightthickness=0, bg="#2A2B2A")
+pp_dta_2.place(x=365, y=95)
+pp_dta_info = dibujar_rectangulo_redondeado(pp_dta_2, 0, 0, 300, 36, r=10, color="#393A3A")
+pp_dta_2.create_text(150, 18, text="Detalles de Productos", fill="white", font=("Arial", 16), anchor="center")
+
+#Filtros de búsqueda, Página productos
+reg_filter = tk.Canvas(productos_page, width=600, height=65, highlightthickness=0, bg="#232323")
+reg_filter.place(x=720, y=110)
+dibujar_rectangulo_redondeado(reg_filter, 0, 0, 600, 65, r=10, color="#2A2B2A")
+
+opcion_filtro_busqueda = tk.StringVar()
+opcion_filtro_busqueda.set("Seleccione un filtro") # Texto inicial filtro
+
+opciones_filtro_busqueda_opciones = ["ID", "Nombre", "Cantidad", "Estado", "Tipo"]
+
+menu_filtros_busqueda = tk.OptionMenu(productos_page, opcion_filtro_busqueda, *opciones_filtro_busqueda_opciones)
+menu_filtros_busqueda.config(font=("Arial", 12), bg="#1F68A3", fg="white",highlightthickness=0)
+menu_filtros_busqueda.place(x=732, y=128, width=172, height=30)
+
+# Etiqueta y campo para Cantidad
+input_busqueda = tk.Entry(productos_page, width=22, font=('Arial', 12), bg="#333538", fg="white")
+input_busqueda.place(x=916, y=128, width=160, height=30)
+
+btn_buscar_filtro = tk.Button(productos_page, text="Buscar", font=('Arial', 12), bg="#1F68A3", fg="white", command=lambda: obtener_productos_filtrados(opcion_filtro_busqueda.get(),input_busqueda.get()))
+btn_buscar_filtro.place(x=1088, y=128, width=82, height=30)
+
+btn_mostrar_todo_filtro = tk.Button(productos_page, text="Mostrar Todo", font=('Arial', 12), bg="#1F68A3", fg="white", command=lambda: mostrar_productos())
+btn_mostrar_todo_filtro.place(x=1182, y=128, width=126, height=30)
+
+
+pp_dta.create_text(90, 95, text="ID", fill="white", font=("Arial", 14), anchor="e")
+pp_dta.create_text(90, 140, text="Nombre", fill="white", font=("Arial", 14), anchor="e")
+pp_dta.create_text(90, 185, text="Cantidad", fill="white", font=("Arial", 14), anchor="e")
+pp_dta.create_text(90, 230, text="Estado", fill="white", font=("Arial", 14), anchor="e")
+pp_dta.create_text(90, 275, text="Tipo", fill="white", font=("Arial", 14), anchor="e")
+
+input_productos_id = tk.Entry(productos_page, width=22, font=('Arial', 12), bg="#333538", fg="white")
+input_productos_id.place(x=424, y=191, width=254, height=26)
+
+input_productos_nombre = tk.Entry(productos_page, width=22, font=('Arial', 12), bg="#333538", fg="white")
+input_productos_nombre.place(x=424, y=236, width=254, height=26)
+
+input_productos_cantidad = tk.Entry(productos_page, width=22, font=('Arial', 12), bg="#333538", fg="white")
+input_productos_cantidad.place(x=424, y=280, width=254, height=26)
+
+option_productos_estado = tk.StringVar()
+option_productos_estado.set("Seleccione un Estado") # Texto inicial filtro
+option_productos_estado_opciones = ["Disponible", "No Disponible"]
+option_productos_estado_menu = tk.OptionMenu(productos_page, option_productos_estado, *option_productos_estado_opciones)
+option_productos_estado_menu.config(font=("Arial", 12), bg="#333538", fg="white", highlightthickness=0)
+option_productos_estado_menu.place(x=424, y=326, width=254, height=26)
+
+input_productos_tipo = tk.Entry(productos_page, width=22, font=('Arial', 12), bg="#333538", fg="white")
+input_productos_tipo.place(x=424, y=376, width=254, height=26)
+
+btn_nuevo_producto = tk.Button(productos_page, text="Nuevo", font=('Arial', 12), bg="#1F68A3", fg="white", command=agregar_nuevo)
+btn_nuevo_producto.place(x=353, y=480, width=150, height=30)
+btn_actualizar_producto = tk.Button(productos_page, text="Actualizar", font=('Arial', 12), bg="#1F68A3", fg="white", command=actualizar_registro)
+btn_actualizar_producto.place(x=528, y=480, width=150, height=30)
+btn_eliminar_producto = tk.Button(productos_page, text="Eliminar", font=('Arial', 12), bg="#1F68A3", fg="white", command=eliminar_registro)
+btn_eliminar_producto.place(x=353, y=520, width=150, height=30)
+btn_limpiar_producto = tk.Button(productos_page, text="Limpiar", font=('Arial', 12), bg="#1F68A3", fg="white", command=limpiar_campos)
+btn_limpiar_producto.place(x=528, y=520, width=150, height=30)
+
+# Crear un estilo para la tabla
+style = ttk.Style(productos_page)
+style.theme_use("winnative")
+
+# Estilo para la tabla sin bordes ni contornos
+style.configure("Custom.Treeview", 
+                background="#333538", 
+                foreground="white", 
+                font=("Arial", 12), 
+                relief="flat", 
+                borderwidth=0,  # Puedes ajustar el grosor del borde
+                highlightthickness=0, 
+                rowheight=30)  # Sin borde ni contorno, sin espaciado extra
+
+# Estilo para el encabezado sin bordes ni contornos
+style.configure("Custom.Treeview.Heading", 
+                background="#333538", 
+                foreground="white", 
+                font=("Arial", 12), 
+                relief="flat", 
+                borderwidth=0, 
+                highlightthickness=0, 
+                anchor="center")  # Cabeceras sin bordes ni contorno
+
+# Estilo para productos "No Disponible"
+style.configure("highlight.Treeview", 
+                background="lightcoral", 
+                foreground="black")
+
+# Tabla para mostrar productos
+tabla = ttk.Treeview(productos_page, style="Custom.Treeview", columns=("ID_Producto", "Nombre", "Cantidad", "Estado", "Tipo"), show="headings")
+
+tabla.heading("ID_Producto", text="ID")
+tabla.heading("Nombre", text="Nombre")
+tabla.heading("Cantidad", text="Cantidad [KG]")
+tabla.heading("Estado", text="Estado")
+tabla.heading("Tipo", text="Tipo")
+
+tabla.column("ID_Producto", width=50, anchor="center", stretch=False)  
+tabla.column("Nombre", width=150, anchor="w", stretch=True)  
+tabla.column("Cantidad", width=100, anchor="w", stretch=True)  
+tabla.column("Estado", width=120, anchor="w", stretch=True)  
+tabla.column("Tipo", width=120, anchor="w", stretch=True)  
+
+tabla.place(x=720, y=190, width=600, height=390)
+
+# Configurar la etiqueta "highlight" para el estilo especial
+tabla.tag_configure("highlight", background="lightcoral", foreground="black")
+# Asociar el evento de clic a la tabla para cargar la información al seleccionar un producto
+tabla.bind("<ButtonRelease-1>", cargar_registro_seleccionado)
+
+actualizar_contenido()
 # Iniciar la actualización del reloj
 actualizar_reloj(canvas3, texto_id)
 
