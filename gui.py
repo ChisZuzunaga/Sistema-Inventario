@@ -27,7 +27,7 @@ cursor = conexion.cursor()
 
 # Crear los frames (simulando pestañas)
 main_page = tk.Frame(root, bg="#232323")  # Pestaña 1
-clientes_page = tk.Frame(root, bg="#32CD32")  # Pestaña 2
+clientes_page = tk.Frame(root, bg="#232323")  # Pestaña 2
 productos_page = tk.Frame(root, bg="#232323")  # Pestaña 3
 transac_page = tk.Frame(root, bg="#BEDFAA")  # Pestaña 4
 reports_page = tk.Frame(root, bg="#AAAAAA")  # Pestaña 5
@@ -85,6 +85,48 @@ tabs = {
     },
 }
 
+def create_database():
+    # Conexión a la base de datos SQLite
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+
+    # Crear tabla Productos
+    cursor.execute('''
+    CREATE TABLE IF NOT EXISTS Productos (
+        ID_Producto INTEGER PRIMARY KEY,
+        Nombre VARCHAR(20) NOT NULL,
+        Cantidad INTEGER NOT NULL,
+        Estado VARCHAR(20) NOT NULL,
+        Tipo VARCHAR(20) NOT NULL
+    )''')
+
+    # Crear tabla Persona
+    cursor.execute('''
+    CREATE TABLE IF NOT EXISTS Persona (
+        Rut_Persona VARCHAR(20) PRIMARY KEY,
+        Nombre VARCHAR(20),
+        Apellido VARCHAR(20),
+        Rol VARCHAR(20)
+    )''')
+
+    # Crear tabla Transaccion
+    cursor.execute('''
+    CREATE TABLE IF NOT EXISTS Transaccion (
+        ID_Transaccion INTEGER PRIMARY KEY,
+        Persona_ID INTEGER,
+        Producto_ID INTEGER,
+        Fecha DATE,
+        Accion VARCHAR(20),
+        Cantidad INTEGER,
+        Precio SMALLMONEY,
+        FOREIGN KEY (Persona_ID) REFERENCES Persona(Rut_Persona),
+        FOREIGN KEY (Producto_ID) REFERENCES Productos(ID_Producto)
+    )''')
+
+    # Confirmar cambios y cerrar conexión
+    conn.commit()
+    conn.close()
+
 def actualizar_contenido():
     main_page.after(100, get_clientes)  # Ejecuta la función 100ms después de iniciar la main_page
     main_page.after(100, get_proveedor)  # Ejecuta la función 100ms después de iniciar la main_page
@@ -94,6 +136,7 @@ def actualizar_contenido():
     main_page.after(100, get_transacciones)  # Ejecuta la función 100ms después de iniciar la main_page
     main_page.after(100, get_utilidad)  # Ejecuta la función 100ms después de iniciar la main_page
     mostrar_productos()
+    mostrar_personas()
 # Función para hacer una copia de seguridad
 def hacer_copia_seguridad():
     try:
@@ -119,11 +162,26 @@ def obtener_info_tablas(db_path):
         cursor.execute("SELECT COUNT(*) FROM Productos")
         info["Productos"] = cursor.fetchone()[0]
 
+        cursor.execute("SELECT count(*) FROM Transaccion where accion = 'Compra'")
+        info["Compras"] = cursor.fetchone()[0]
+
+        cursor.execute("SELECT SUM(CASE WHEN Accion = 'Compra' THEN Precio ELSE 0 END) AS Compras FROM Transaccion")
+        info["Compras_Dinero"] = cursor.fetchone()[0]
+
+        cursor.execute("SELECT count(*) FROM Transaccion where accion = 'Venta'")
+        info["Ventas"] = cursor.fetchone()[0]
+
+        cursor.execute("SELECT SUM(CASE WHEN Accion = 'Venta' THEN Precio ELSE 0 END) AS Ventas FROM Transaccion")
+        info["Ventas_Dinero"] = cursor.fetchone()[0]
+
         cursor.execute("SELECT COUNT(*) FROM Persona")
         info["Personas"] = cursor.fetchone()[0]
 
         cursor.execute("SELECT COUNT(*) FROM Transaccion")
         info["Transacciones"] = cursor.fetchone()[0]
+
+        cursor.execute("SELECT SUM(CASE WHEN Accion = 'Venta' THEN Precio ELSE 0 END) - SUM(CASE WHEN Accion = 'Compra' THEN Precio ELSE 0 END) AS Utilidad FROM Transaccion")
+        info["Utilidad"] = cursor.fetchone()[0]
 
     except sqlite3.Error as e:
         info["Error"] = str(e)
@@ -142,8 +200,13 @@ def restaurar_copia_seguridad():
 
             # Mostrar información en el Label
             info_texto.set(f"Productos: {info.get('Productos', 'Error')}\n"
+                           f"Ventas: {info.get('Ventas', 'Error')}\n"
+                           f"Ventas [$]: {info.get('Ventas_Dinero', 'Error')}\n"
+                           f"Compras: {info.get('Compras', 'Error')}\n"
+                           f"Compras [$]: {info.get('Compras_Dinero', 'Error')}\n"
                            f"Personas: {info.get('Personas', 'Error')}\n"
-                           f"Transacciones: {info.get('Transacciones', 'Error')}\n")
+                           f"Transacciones: {info.get('Transacciones', 'Error')}\n"
+                           f"Utilidad [$]: {info.get('Utilidad', 'Error')}\n")
 
     def confirmar_restauracion():
         seleccion = listbox.curselection()
@@ -928,21 +991,20 @@ def mostrar_productos():
         if producto[3] == "No Disponible":
             tabla.item(item, tags=("highlight",))
     
-    # Para mantener el fondo consistente, agregamos una fila en blanco con el color de fondo.
-    # Se calcula el número total de filas necesarias para ocupar el espacio visible de la tabla.
-    filas_actuales = len(productos)
-    filas_necesarias = int(tabla.winfo_height() / 21)  # Estimar el número de filas necesarias basado en el tamaño de la tabla
-    filas_a_agregar = filas_necesarias - filas_actuales
+def mostrar_personas():
+    conexion = sqlite3.connect(DB_NAME)
+    cursor = conexion.cursor()
+    cursor.execute("SELECT * FROM Persona")
+    personas = cursor.fetchall()
+    conexion.close()
 
-    # Agregar filas vacías sin contenido para llenar el espacio restante
-    for _ in range(filas_a_agregar):
-        tabla.insert("", tk.END, values=("", "", "", "", ""))  # Las filas vacías también tendrán el color de fondo de la tabla
+    # Limpiar la tabla antes de agregar los nuevos productos
+    for fila in tabla_personas.get_children():
+        tabla_personas.delete(fila)
 
-    # Cambiar el color de fondo de todas las celdas que quedan vacías en la tabla
-    for fila in tabla.get_children():
-        for col in tabla["columns"]:
-            tabla.item(fila, values=tabla.item(fila, "values")[0:])  # Asegura que los valores de las celdas estén consistentes
-
+    # Insertar los productos
+    for persona in personas:
+        tabla_personas.insert("", tk.END, values=persona)
 
 def obtener_productos_filtrados(filtro, busqueda):
     conn = sqlite3.connect(DB_NAME)
@@ -1079,6 +1141,127 @@ def limpiar_campos():
     input_productos_cantidad.delete(0, tk.END)
     option_productos_estado.set("Seleccione un Estado")
     mostrar_productos()
+
+def obtener_personas_filtrados(filtro, busqueda):
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+
+    # Verificar el filtro y crear la consulta SQL correspondiente
+    if filtro == "Rut":
+        cursor.execute("SELECT * FROM Persona WHERE Rut_Persona LIKE ?", (f"%{busqueda}%",))
+    elif filtro == "Nombre":
+        cursor.execute("SELECT * FROM Persona WHERE Nombre LIKE ?", (f"%{busqueda}%",))
+    elif filtro == "Apellido":
+        cursor.execute("SELECT * FROM Persona WHERE Apellido LIKE ?", (f"%{busqueda}%",))
+    elif filtro == "Rol":
+        cursor.execute("SELECT * FROM Persona WHERE Rol = ?", (f'{busqueda}',))
+
+    # Recuperar los resultados
+    personas = cursor.fetchall()
+
+    # Cerrar la conexión
+    conn.close()
+
+    # Limpiar la tabla
+    for fila in tabla_personas.get_children():
+        tabla_personas.delete(fila)
+
+    # Insertar los productos filtrados
+    for persona in personas:
+        tabla_personas.insert("", tk.END, values=persona)
+
+def cargar_registro_seleccionado_persona(event):
+    
+    # Obtener el ID del producto seleccionado en la tabla
+    item = tabla_personas.selection()[0]  # Obtener la primera selección
+    personas = tabla_personas.item(item)['values']  # Obtener los valores de la fila seleccionada
+
+    # Rellenar los campos con los valores del producto seleccionado
+    input_personas_rut.delete(0, tk.END)
+    input_personas_rut.insert(0, personas[0])  # Rut
+
+    input_personas_nombre.delete(0, tk.END)
+    input_personas_nombre.insert(0, personas[1])  # Nombre
+
+    input_personas_apellido.delete(0, tk.END)
+    input_personas_apellido.insert(0, personas[2])  # Apellido
+
+    option_personas_estado.set(personas[3])  # Rol
+
+def agregar_nueva_persona():
+    # Verificar que todos los campos estén completos antes de agregar el producto
+    rut = input_personas_rut.get()
+    nombre = input_personas_nombre.get()
+    apellido = input_personas_apellido.get()
+    rol = option_personas_estado.get()
+
+    if not nombre or not rut or not apellido or rol == "Elige un Rol":
+        tk.messagebox.showwarning("Campos incompletos", "Por favor, complete todos los campos.")
+        return  # No proceder si algún campo está vacío
+
+
+    # Insertar el nuevo registro
+    conexion = sqlite3.connect(DB_NAME)
+    cursor = conexion.cursor()
+    cursor.execute("INSERT INTO Persona (Rut_Persona, Nombre, Apellido, Rol) VALUES (?, ?, ?, ?)",
+                   (rut, nombre, apellido, rol))
+    conexion.commit()
+    conexion.close()
+
+    # Limpiar los campos después de agregar
+    limpiar_campos_persona()
+    mostrar_personas()
+
+def actualizar_registro_persona():
+    # Obtener los datos del formulario
+    rut = input_personas_rut.get()
+    nombre = input_personas_nombre.get()
+    apellido = input_personas_apellido.get()
+    rol = option_personas_estado.get()
+
+    if not nombre or not rut or not apellido or rol == "Seleccione un Rol":
+        tk.messagebox.showwarning("Campos incompletos", "Por favor, complete todos los campos.")
+        return  # No proceder si algún campo está vacío
+
+    # Actualizar el registro correspondiente en la base de datos
+    conexion = sqlite3.connect(DB_NAME)
+    cursor = conexion.cursor()
+    cursor.execute("""
+        UPDATE Persona SET Nombre = ?, Apellido = ?, Rol = ? WHERE Rut_Persona = ?
+    """, (nombre, apellido, rol, rut))
+    conexion.commit()
+    conexion.close()
+
+    # Limpiar los campos después de actualizar
+    limpiar_campos_persona()
+    mostrar_personas()
+
+def eliminar_registro_persona():
+    # Obtener la ID del producto que se va a eliminar
+    rut = input_personas_rut.get()
+
+    # Cambiar el estado de disponible a no disponible
+    conexion = sqlite3.connect(DB_NAME)
+    cursor = conexion.cursor()
+    cursor.execute("""
+        DELETE FROM Persona WHERE Persona.Rut_Persona = ? 
+    """, (rut,))
+    conexion.commit()
+    conexion.close()
+
+    # Limpiar los campos después de eliminar
+    limpiar_campos_persona()
+    mostrar_personas()
+
+def limpiar_campos_persona():
+    # Limpiar todos los campos de entrada
+    input_personas_rut.config(state="normal")  # Habilitar el campo ID
+    input_personas_rut.delete(0, tk.END)
+
+    input_personas_nombre.delete(0, tk.END)
+    input_personas_apellido.delete(0, tk.END)
+    option_personas_estado.set("Elegir un Rol")
+    mostrar_personas()
 
 # Canvas 1: Barra superior
 canvas1 = tk.Canvas(root, width=1340, height=70, highlightthickness=0, bg="#292B2B")
@@ -1624,7 +1807,7 @@ btn_limpiar_producto = tk.Button(productos_page, text="Limpiar", font=('Arial', 
 btn_limpiar_producto.place(x=528, y=520, width=150, height=30)
 
 # Crear un estilo para la tabla
-style = ttk.Style(productos_page)
+style = ttk.Style(root)
 style.theme_use("winnative")
 
 # Estilo para la tabla sin bordes ni contornos
@@ -1634,6 +1817,7 @@ style.configure("Custom.Treeview",
                 font=("Arial", 12), 
                 relief="flat", 
                 borderwidth=0,  # Puedes ajustar el grosor del borde
+                fieldbackground="#333538",  # Cambia el fondo vacío al mismo color de la tabla
                 highlightthickness=0, 
                 rowheight=30)  # Sin borde ni contorno, sin espaciado extra
 
@@ -1674,10 +1858,91 @@ tabla.tag_configure("highlight", background="lightcoral", foreground="black")
 # Asociar el evento de clic a la tabla para cargar la información al seleccionar un producto
 tabla.bind("<ButtonRelease-1>", cargar_registro_seleccionado)
 
+#VISTA PERSONAS
+
+#Contenedor de los detalles del producto
+Contenedor_Personas = tk.Canvas(clientes_page, width=970, height=250, highlightthickness=0, bg="#232323")
+Contenedor_Personas.place(x=335, y=99)
+dibujar_rectangulo_redondeado(Contenedor_Personas, 0, 0, 970, 250, r=10, color="#2A2B2A")
+
+Contenedor_Texto_Personas = tk.Canvas(clientes_page, width=430, height=36, highlightthickness=0, bg="#2A2B2A")
+Contenedor_Texto_Personas.place(x=618, y=82)
+Contenedor_Texto_Personas_Info = dibujar_rectangulo_redondeado(Contenedor_Texto_Personas, 0, 0, 430, 36, r=10, color="#393A3A")
+Contenedor_Texto_Personas.create_text(215, 18, text="Detalles de Personas", fill="white", font=("Arial", 16), anchor="center")
+
+
+opcion_filtro_busqueda_personas = tk.StringVar()
+opcion_filtro_busqueda_personas.set("Seleccione un filtro") # Texto inicial filtro
+
+opciones_filtro_busqueda_personas_opciones = ["Rut", "Nombre", "Apellido", "Rol"]
+
+menu_filtros_busqueda_personas = tk.OptionMenu(clientes_page, opcion_filtro_busqueda_personas, *opciones_filtro_busqueda_personas_opciones)
+menu_filtros_busqueda_personas.config(font=("Arial", 12), bg="#1F68A3", fg="white",highlightthickness=0)
+menu_filtros_busqueda_personas.place(x=419, y=156, width=168, height=40)
+
+input_busqueda_personas = tk.Entry(clientes_page, font=('Arial', 12), bg="#333538", fg="white")
+input_busqueda_personas.place(x=605, y=156, width=280, height=40)
+
+btn_buscar_filtro_personas = tk.Button(clientes_page, text="Buscar", font=('Arial', 12), bg="#1F68A3", fg="white", command=lambda: obtener_personas_filtrados(opcion_filtro_busqueda_personas.get(),input_busqueda_personas.get()))
+btn_buscar_filtro_personas.place(x=903, y=156, width=150, height=40)
+
+btn_mostrar_todo_filtro_personas = tk.Button(clientes_page, text="Mostrar Todo", font=('Arial', 12), bg="#1F68A3", fg="white", command=lambda: mostrar_personas())
+btn_mostrar_todo_filtro_personas.place(x=1071, y=156, width=150, height=40)
+
+
+Contenedor_Personas.create_text(140, 150, text="RUT", fill="white", font=("Arial", 14), anchor="e")
+Contenedor_Personas.create_text(140, 192, text="Nombre", fill="white", font=("Arial", 14), anchor="e")
+Contenedor_Personas.create_text(390, 150, text="Apellido", fill="white", font=("Arial", 14), anchor="e")
+Contenedor_Personas.create_text(390, 192, text="Rol", fill="white", font=("Arial", 14), anchor="e")
+
+input_personas_rut = tk.Entry(clientes_page, font=('Arial', 12), bg="#333538", fg="white")
+input_personas_rut.place(x=487, y=234, width=150, height=30)
+
+input_personas_nombre = tk.Entry(clientes_page, font=('Arial', 12), bg="#333538", fg="white")
+input_personas_nombre.place(x=487, y=278, width=150, height=30)
+
+input_personas_apellido = tk.Entry(clientes_page, font=('Arial', 12), bg="#333538", fg="white")
+input_personas_apellido.place(x=735, y=234, width=150, height=30)
+
+option_personas_estado = tk.StringVar()
+option_personas_estado.set("Elige un Rol") # Texto inicial filtro
+option_personas_estado_opciones = ["Proveedor", "Cliente"]
+option_personas_estado_menu = tk.OptionMenu(clientes_page, option_personas_estado, *option_personas_estado_opciones)
+option_personas_estado_menu.config(font=("Arial", 12), bg="#333538", fg="white", highlightthickness=0)
+option_personas_estado_menu.place(x=735, y=277, width=150, height=30)
+
+btn_nueva_persona = tk.Button(clientes_page, text="Nuevo", font=('Arial', 12), bg="#1F68A3", fg="white", command=agregar_nueva_persona)
+btn_nueva_persona.place(x=903, y=234, width=150, height=30)
+btn_actualizar_persona = tk.Button(clientes_page, text="Actualizar", font=('Arial', 12), bg="#1F68A3", fg="white", command=actualizar_registro_persona)
+btn_actualizar_persona.place(x=1071, y=234, width=150, height=30)
+btn_eliminar_persona = tk.Button(clientes_page, text="Eliminar", font=('Arial', 12), bg="#1F68A3", fg="white", command=eliminar_registro_persona)
+btn_eliminar_persona.place(x=903, y=278, width=150, height=30)
+btn_limpiar_persona = tk.Button(clientes_page, text="Limpiar", font=('Arial', 12), bg="#1F68A3", fg="white", command=limpiar_campos_persona)
+btn_limpiar_persona.place(x=1071, y=278, width=150, height=30)
+
+
+# Tabla para mostrar productos
+tabla_personas = ttk.Treeview(clientes_page, style="Custom.Treeview", columns=("Rut_Persona", "Nombre", "Apellido", "Rol"), show="headings")
+
+tabla_personas.heading("Rut_Persona", text="Rut")
+tabla_personas.heading("Nombre", text="Nombre")
+tabla_personas.heading("Apellido", text="Apellido")
+tabla_personas.heading("Rol", text="Estado")
+
+tabla_personas.column("Rut_Persona", width=150, anchor="center", stretch=False)  
+tabla_personas.column("Nombre", width=150, anchor="w", stretch=True)  
+tabla_personas.column("Apellido", width=150, anchor="w", stretch=True)  
+tabla_personas.column("Rol", width=150, anchor="w", stretch=True)    
+
+tabla_personas.place(x=335, y=360, width=970, height=250)
+
+# Asociar el evento de clic a la tabla para cargar la información al seleccionar un producto
+tabla_personas.bind("<ButtonRelease-1>", cargar_registro_seleccionado_persona)
+
+create_database()
 actualizar_contenido()
 # Iniciar la actualización del reloj
 actualizar_reloj(canvas3, texto_id)
-
 mostrar_pestaña("dashboard")
 center_window(root)
 root.mainloop()
