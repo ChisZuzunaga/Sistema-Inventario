@@ -29,9 +29,9 @@ cursor = conexion.cursor()
 main_page = tk.Frame(root, bg="#232323")  # Pestaña 1
 clientes_page = tk.Frame(root, bg="#232323")  # Pestaña 2
 productos_page = tk.Frame(root, bg="#232323")  # Pestaña 3
-transac_page = tk.Frame(root, bg="#BEDFAA")  # Pestaña 4
+transac_page = tk.Frame(root, bg="#232323")  # Pestaña 4
 reports_page = tk.Frame(root, bg="#AAAAAA")  # Pestaña 5
-config_page = tk.Frame(root, bg="#242224")  # Pestaña 6
+config_page = tk.Frame(root, bg="#232323")  # Pestaña 6
 
 frames = [main_page, clientes_page, productos_page, transac_page, reports_page, config_page]
 
@@ -137,6 +137,7 @@ def actualizar_contenido():
     main_page.after(100, get_utilidad)  # Ejecuta la función 100ms después de iniciar la main_page
     mostrar_productos()
     mostrar_personas()
+    mostrar_transacciones()
 # Función para hacer una copia de seguridad
 def hacer_copia_seguridad():
     try:
@@ -1005,6 +1006,21 @@ def mostrar_personas():
     # Insertar los productos
     for persona in personas:
         tabla_personas.insert("", tk.END, values=persona)
+
+def mostrar_transacciones():
+    conexion = sqlite3.connect(DB_NAME)
+    cursor = conexion.cursor()
+    cursor.execute("SELECT * FROM Transaccion")
+    transacciones = cursor.fetchall()
+    conexion.close()
+
+    # Limpiar la tabla antes de agregar los nuevos productos
+    for fila in tabla_transacciones.get_children():
+        tabla_transacciones.delete(fila)
+
+    # Insertar los productos
+    for transaccion in transacciones:
+        tabla_transacciones.insert("", tk.END, values=transaccion)
 
 def obtener_productos_filtrados(filtro, busqueda):
     conn = sqlite3.connect(DB_NAME)
@@ -1938,6 +1954,138 @@ tabla_personas.place(x=335, y=360, width=970, height=250)
 
 # Asociar el evento de clic a la tabla para cargar la información al seleccionar un producto
 tabla_personas.bind("<ButtonRelease-1>", cargar_registro_seleccionado_persona)
+
+
+#VISTA TRANSACCIONES
+
+#Contenedor de los detalles del producto
+Contenedor_transacciones = tk.Canvas(transac_page, width=320, height=510, highlightthickness=0, bg="#232323")
+Contenedor_transacciones.place(x=320, y=100)
+dibujar_rectangulo_redondeado(Contenedor_transacciones, 0, 0, 320, 510, r=10, color="#2A2B2A")
+
+Contenedor_Texto_transacciones = tk.Canvas(transac_page, width=270, height=32, highlightthickness=0, bg="#2A2B2A")
+Contenedor_Texto_transacciones.place(x=343, y=84)
+Contenedor_Texto_transacciones_Info = dibujar_rectangulo_redondeado(Contenedor_Texto_transacciones, 0, 0, 270, 32, r=10, color="#393A3A")
+Contenedor_Texto_transacciones.create_text(135, 16, text="Detalles de Transacciones", fill="white", font=("Arial", 16), anchor="center")
+
+#Contenedor de los detalles de las personas
+Contenedor_transacciones_Personas = tk.Canvas(transac_page, width=680, height=65, highlightthickness=0, bg="#232323")
+Contenedor_transacciones_Personas.place(x=650, y=100)
+dibujar_rectangulo_redondeado(Contenedor_transacciones_Personas, 0, 0, 680, 65, r=10, color="#2A2B2A")
+
+Contenedor_Texto_transacciones = tk.Canvas(transac_page, width=233, height=32, highlightthickness=0, bg="#2A2B2A")
+Contenedor_Texto_transacciones.place(x=665, y=84)
+Contenedor_Texto_transacciones_Info = dibujar_rectangulo_redondeado(Contenedor_Texto_transacciones, 0, 0, 233, 32, r=10, color="#393A3A")
+Contenedor_Texto_transacciones.create_text(116, 16, text="Detalles de Personas", fill="white", font=("Arial", 16), anchor="center")
+
+Contenedor_transacciones_Personas.create_text(80, 40, text="Nombre", fill="white", font=("Arial", 14), anchor="e")
+input_transacciones_nombre_persona = tk.Entry(transac_page, font=('Arial', 12), bg="#333538", fg="white")
+input_transacciones_nombre_persona.place(x=735, y=125, width=100, height=30)
+
+Contenedor_transacciones_Personas.create_text(262, 40, text="Apellido", fill="white", font=("Arial", 14), anchor="e")
+input_transacciones_apellido_persona = tk.Entry(transac_page, font=('Arial', 12), bg="#333538", fg="white")
+input_transacciones_apellido_persona.place(x=917, y=125, width=100, height=30)
+
+Contenedor_transacciones_Personas.create_text(451, 40, text="Producto", fill="white", font=("Arial", 14), anchor="e")
+input_transacciones_nombre_producto = tk.Entry(transac_page, font=('Arial', 12), bg="#333538", fg="white")
+input_transacciones_nombre_producto.place(x=1106, y=125, width=100, height=30)
+
+
+#Contenedor de los filtros del producto
+Contenedor_transacciones_filtros = tk.Canvas(transac_page, width=680, height=66, highlightthickness=0, bg="#232323")
+Contenedor_transacciones_filtros.place(x=650, y=180)
+dibujar_rectangulo_redondeado(Contenedor_transacciones_filtros, 0, 0, 680, 66, r=10, color="#2A2B2A")
+
+
+opcion_filtro_busqueda_transacciones = tk.StringVar()
+opcion_filtro_busqueda_transacciones.set("Seleccione un filtro") # Texto inicial filtro
+
+opciones_filtro_busqueda_transacciones_opciones = ["ID", "Rut_Persona", "ID_Producto", "Fecha", "Accion", "Cantidad", "Precio"]
+
+menu_filtros_busqueda_transacciones = tk.OptionMenu(transac_page, opcion_filtro_busqueda_transacciones, *opciones_filtro_busqueda_transacciones_opciones)
+menu_filtros_busqueda_transacciones.config(font=("Arial", 12), bg="#1F68A3", fg="white",highlightthickness=0)
+menu_filtros_busqueda_transacciones.place(x=668, y=198, width=172, height=30)
+
+input_busqueda_transacciones = tk.Entry(transac_page, font=('Arial', 12), bg="#333538", fg="white")
+input_busqueda_transacciones.place(x=852, y=198, width=176, height=30)
+
+btn_buscar_filtro_transacciones = tk.Button(transac_page, text="Buscar", font=('Arial', 12), bg="#1F68A3", fg="white", command=lambda: obtener_transacciones_filtrados(opcion_filtro_busqueda_transacciones.get(),input_busqueda_transacciones.get()))
+btn_buscar_filtro_transacciones.place(x=1040, y=198, width=120, height=30)
+
+btn_mostrar_todo_filtro_transacciones = tk.Button(transac_page, text="Mostrar Todo", font=('Arial', 12), bg="#1F68A3", fg="white", command=lambda: mostrar_transacciones())
+btn_mostrar_todo_filtro_transacciones.place(x=1172, y=198, width=140, height=30)
+
+
+
+
+
+
+Contenedor_transacciones.create_text(115, 60, text="ID", fill="white", font=("Arial", 14), anchor="e")
+Contenedor_transacciones.create_text(115, 110, text="Rut", fill="white", font=("Arial", 14), anchor="e")
+Contenedor_transacciones.create_text(115, 160, text="ID_Producto", fill="white", font=("Arial", 14), anchor="e")
+Contenedor_transacciones.create_text(115, 215, text="Fecha", fill="white", font=("Arial", 14), anchor="e")
+Contenedor_transacciones.create_text(115, 265, text="Acción", fill="white", font=("Arial", 14), anchor="e")
+Contenedor_transacciones.create_text(115, 320, text="Cantidad", fill="white", font=("Arial", 14), anchor="e")
+Contenedor_transacciones.create_text(115, 370, text="Precio", fill="white", font=("Arial", 14), anchor="e")
+
+input_transacciones_id = tk.Entry(transac_page, font=('Arial', 12), bg="#333538", fg="white")
+input_transacciones_id.place(x=445, y=145, width=160, height=30)
+
+input_transacciones_id_persona = tk.Entry(transac_page, font=('Arial', 12), bg="#333538", fg="white")
+input_transacciones_id_persona.place(x=445, y=194, width=160, height=30)
+
+input_transacciones_id_producto = tk.Entry(transac_page, font=('Arial', 12), bg="#333538", fg="white")
+input_transacciones_id_producto.place(x=445, y=246, width=160, height=30)
+
+input_transacciones_fecha = tk.Entry(transac_page, font=('Arial', 12), bg="#333538", fg="white")
+input_transacciones_fecha.place(x=445, y=302, width=160, height=30)
+
+option_transacciones_estado = tk.StringVar()
+option_transacciones_estado.set("Elige una acción") # Texto inicial filtro
+option_transacciones_estado_opciones = ["Compra", "Venta"]
+option_transacciones_estado_menu = tk.OptionMenu(transac_page, option_transacciones_estado, *option_transacciones_estado_opciones)
+option_transacciones_estado_menu.config(font=("Arial", 12), bg="#333538", fg="white", highlightthickness=0)
+option_transacciones_estado_menu.place(x=445, y=353, width=160, height=30)
+
+input_transacciones_cantidad = tk.Entry(transac_page, font=('Arial', 12), bg="#333538", fg="white")
+input_transacciones_cantidad.place(x=445, y=404, width=160, height=30)
+
+input_transacciones_precio = tk.Entry(transac_page, font=('Arial', 12), bg="#333538", fg="white")
+input_transacciones_precio.place(x=445, y=455, width=160, height=30)
+
+btn_nueva_transac = tk.Button(transac_page, text="Nuevo", font=('Arial', 12), bg="#1F68A3", fg="white", command=agregar_nueva_persona)
+btn_nueva_transac.place(x=355, y=515, width=120, height=30)
+btn_actualizar_transac = tk.Button(transac_page, text="Actualizar", font=('Arial', 12), bg="#1F68A3", fg="white", command=actualizar_registro_persona)
+btn_actualizar_transac.place(x=485, y=515, width=120, height=30)
+btn_eliminar_transac = tk.Button(transac_page, text="Eliminar", font=('Arial', 12), bg="#1F68A3", fg="white", command=eliminar_registro_persona)
+btn_eliminar_transac.place(x=355, y=555, width=120, height=30)
+btn_limpiar_transac = tk.Button(transac_page, text="Limpiar", font=('Arial', 12), bg="#1F68A3", fg="white", command=limpiar_campos_persona)
+btn_limpiar_transac.place(x=485, y=555, width=120, height=30)
+
+# Tabla para mostrar productos
+tabla_transacciones = ttk.Treeview(transac_page, style="Custom.Treeview", columns=("ID_Transaccion", "Persona_ID", "Producto_ID", "Fecha", "Accion", "Cantidad", "Precio"), show="headings")
+
+tabla_transacciones.heading("ID_Transaccion", text="ID")
+tabla_transacciones.heading("Persona_ID", text="Rut")
+tabla_transacciones.heading("Producto_ID", text="Producto")
+tabla_transacciones.heading("Fecha", text="Fecha")
+tabla_transacciones.heading("Accion", text="Accion")
+tabla_transacciones.heading("Cantidad", text="Cantidad")
+tabla_transacciones.heading("Precio", text="Precio")
+
+tabla_transacciones.column("ID_Transaccion", width=50, anchor="center", stretch=False)  
+tabla_transacciones.column("Persona_ID", width=100, anchor="w", stretch=True)  
+tabla_transacciones.column("Producto_ID", width=50, anchor="w", stretch=True)  
+tabla_transacciones.column("Fecha", width=80, anchor="w", stretch=True)    
+tabla_transacciones.column("Accion", width=100, anchor="w", stretch=True)    
+tabla_transacciones.column("Cantidad", width=100, anchor="w", stretch=True)    
+tabla_transacciones.column("Precio", width=100, anchor="w", stretch=True)    
+
+tabla_transacciones.place(x=650, y=261, width=680, height=349)
+
+# Asociar el evento de clic a la tabla para cargar la información al seleccionar un producto
+tabla_transacciones.bind("<ButtonRelease-1>", cargar_registro_seleccionado_persona)
+
 
 create_database()
 actualizar_contenido()
