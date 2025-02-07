@@ -138,6 +138,7 @@ def actualizar_contenido():
     mostrar_productos()
     mostrar_personas()
     mostrar_transacciones()
+
 # Función para hacer una copia de seguridad
 def hacer_copia_seguridad():
     try:
@@ -705,7 +706,7 @@ def agregar_transaccion_compras(campos_compras, productos_dict, proveedores_dict
 
         cursor.execute("""
             INSERT INTO Transaccion (Persona_ID, Producto_ID, Fecha, Accion, Cantidad, Precio)
-            VALUES (?, ?, DATE('now'), ?, ?, ?)
+            VALUES (?, ?, strftime('%d-%m-%Y', datetime('now', 'localtime')), ?, ?, ?)
         """, (proveedor_rut, producto_id, accion, cantidad, precio))
 
         # Actualizar el stock en la tabla Producto
@@ -755,7 +756,7 @@ def agregar_transaccion_ventas(campos_compras, productos_dict, clientes_dict):
 
         cursor.execute("""
             INSERT INTO Transaccion (Persona_ID, Producto_ID, Fecha, Accion, Cantidad, Precio)
-            VALUES (?, ?, DATE('now'), ?, ?, ?)
+            VALUES (?, ?, strftime('%d-%m-%Y', datetime('now', 'localtime')), ?, ?, ?)
         """, (cliente_rut, producto_id, accion, cantidad, precio))
         
         # Actualizar stock del producto
@@ -1075,6 +1076,7 @@ def cargar_registro_seleccionado(event):
 
 def agregar_nuevo():
     # Verificar que todos los campos estén completos antes de agregar el producto
+    id_producto = input_productos_id.get()
     nombre = input_productos_nombre.get()
     tipo = input_productos_tipo.get()
     cantidad = input_productos_cantidad.get()
@@ -1095,6 +1097,16 @@ def agregar_nuevo():
     # Insertar el nuevo registro
     conexion = sqlite3.connect(DB_NAME)
     cursor = conexion.cursor()
+
+    # Verificar si la ID ya existe en la tabla Transaccion
+    cursor.execute("SELECT ID_Producto FROM Productos WHERE ID_Producto = ?", (id_producto,))
+    existe = cursor.fetchone()  # Obtener el resultado de la consulta
+
+    if existe:
+        tk.messagebox.showerror("Error", "La ID del Producto ya existe. Introduzca uno diferente.")
+        conexion.close()
+        return  # No proceder con la inserción si la ID ya existe
+
     cursor.execute("INSERT INTO Productos (ID_Producto, Nombre, Cantidad, Estado, Tipo) VALUES (?, ?, ?, ?, ?)",
                    (new_id, nombre, cantidad, estado, tipo))
     conexion.commit()
@@ -1219,6 +1231,16 @@ def agregar_nueva_persona():
     # Insertar el nuevo registro
     conexion = sqlite3.connect(DB_NAME)
     cursor = conexion.cursor()
+
+    # Verificar si la ID ya existe en la tabla Persona
+    cursor.execute("SELECT Rut_Persona FROM Persona WHERE Rut_Persona = ?", (rut,))
+    existe = cursor.fetchone()  # Obtener el resultado de la consulta
+
+    if existe:
+        tk.messagebox.showerror("Error", "El Rut de la persona ya existe. Introduzca uno diferente.")
+        conexion.close()
+        return  # No proceder con la inserción si la ID ya existe
+
     cursor.execute("INSERT INTO Persona (Rut_Persona, Nombre, Apellido, Rol) VALUES (?, ?, ?, ?)",
                    (rut, nombre, apellido, rol))
     conexion.commit()
@@ -1278,6 +1300,185 @@ def limpiar_campos_persona():
     input_personas_apellido.delete(0, tk.END)
     option_personas_estado.set("Elegir un Rol")
     mostrar_personas()
+
+def obtener_transacciones_filtrados(filtro, busqueda):
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+
+    # Verificar el filtro y crear la consulta SQL correspondiente
+    if filtro == "ID":
+        cursor.execute("SELECT * FROM Transaccion WHERE ID_Transaccion = ?", (f'{busqueda}',))
+    elif filtro == "Rut_Persona":
+        cursor.execute("SELECT * FROM Transaccion WHERE Persona_ID LIKE ?", (f"%{busqueda}%",))
+    elif filtro == "ID_Producto":
+        cursor.execute("SELECT * FROM Transaccion WHERE Producto_ID LIKE ?", (f"%{busqueda}%",))
+    elif filtro == "Fecha":
+        cursor.execute("SELECT * FROM Transaccion WHERE Fecha LIKE ?", (f'{busqueda}',))
+    elif filtro == "Accion":
+        cursor.execute("SELECT * FROM Transaccion WHERE Accion = ?", (f'{busqueda}',))
+    elif filtro == "Cantidad":
+        cursor.execute("SELECT * FROM Transaccion WHERE Cantidad LIKE ?", (f'{busqueda}',))
+    elif filtro == "Precio":
+        cursor.execute("SELECT * FROM Transaccion WHERE Precio LIKE ?", (f'{busqueda}',))
+    # Recuperar los resultados
+    transacciones = cursor.fetchall()
+
+    # Cerrar la conexión
+    conn.close()
+
+    # Limpiar la tabla
+    for fila in tabla_transacciones.get_children():
+        tabla_transacciones.delete(fila)
+
+    # Insertar los productos filtrados
+    for transaccion in transacciones:
+        tabla_transacciones.insert("", tk.END, values=transaccion)
+
+def cargar_registro_seleccionado_transaccion(event):
+    # Obtener el ID del producto seleccionado en la tabla
+    item = tabla_transacciones.selection()[0]  # Obtener la primera selección
+    transaccion = tabla_transacciones.item(item)['values']  # Obtener los valores de la fila seleccionada
+
+    conexion = sqlite3.connect(DB_NAME)
+    cursor = conexion.cursor()
+    cursor.execute("""SELECT Persona.Nombre as Nombre, Persona.Apellido as Apellido, Productos.Nombre as NombreProducto FROM Transaccion INNER JOIN Persona ON Transaccion.Persona_ID = Persona.Rut_Persona INNER join Productos on Productos.ID_Producto = Transaccion.Producto_ID WHERE Transaccion.ID_Transaccion = ?
+    """, (transaccion[0],))
+
+    transaccion_consulta = cursor.fetchone()
+    if transaccion_consulta:  # Verifica que haya resultados
+        nombre_transaccion, apellido_transaccion, producto_nombre_transaccion = transaccion_consulta
+    else:
+        nombre_transaccion, apellido_transaccion, producto_nombre_transaccion = None, None, None
+
+    conexion.close()
+
+    # Rellenar los campos con los valores del producto seleccionado
+    input_transacciones_id.delete(0, tk.END)
+    input_transacciones_id.insert(0, transaccion[0])  # ID
+
+    input_transacciones_id_persona.delete(0, tk.END)
+    input_transacciones_id_persona.insert(0, transaccion[1])  # Rut
+
+    input_transacciones_id_producto.delete(0, tk.END)
+    input_transacciones_id_producto.insert(0, transaccion[2])  # ID Producto
+
+    input_transacciones_fecha.delete(0, tk.END)
+    input_transacciones_fecha.insert(0, transaccion[3])  # Fecha
+
+    option_transacciones_estado.set(transaccion[4])  # Accion
+
+    input_transacciones_cantidad.delete(0, tk.END)
+    input_transacciones_cantidad.insert(0, transaccion[5])  # Cantidad
+
+    input_transacciones_precio.delete(0, tk.END)
+    input_transacciones_precio.insert(0, transaccion[6])  # Precio
+    
+    input_transacciones_nombre_persona.delete(0, tk.END)
+    input_transacciones_nombre_persona.insert(0, nombre_transaccion)  # Nombre Persona Transaccion
+    
+    input_transacciones_apellido_persona.delete(0, tk.END)
+    input_transacciones_apellido_persona.insert(0, apellido_transaccion)  # Apellido Persona Transaccion
+
+    input_transacciones_nombre_producto.delete(0, tk.END)
+    input_transacciones_nombre_producto.insert(0, producto_nombre_transaccion)  # Nombre Producto Transaccion
+
+def agregar_nueva_transaccion():
+    # Verificar que todos los campos estén completos antes de agregar el producto
+    id_transaccion = input_transacciones_id.get()
+    id_persona = input_transacciones_id_persona.get()
+    id_producto = input_transacciones_id_producto.get()
+    fecha = input_transacciones_fecha.get()
+    estado = option_transacciones_estado.get()
+    cantidad = input_transacciones_cantidad.get()
+    precio = input_transacciones_precio.get()
+
+
+    if not id_transaccion or not id_persona or not id_producto or not fecha or not estado or not cantidad or precio == "Elige una Acción":
+        tk.messagebox.showwarning("Campos incompletos", "Por favor, complete todos los campos.")
+        return  # No proceder si algún campo está vacío
+
+
+    # Insertar el nuevo registro
+    conexion = sqlite3.connect(DB_NAME)
+    cursor = conexion.cursor()
+
+    # Verificar si la ID ya existe en la tabla Transaccion
+    cursor.execute("SELECT ID_Transaccion FROM Transaccion WHERE ID_Transaccion = ?", (id_transaccion,))
+    existe = cursor.fetchone()  # Obtener el resultado de la consulta
+
+    if existe:
+        tk.messagebox.showerror("Error", "La ID de la transacción ya existe. Introduzca una diferente.")
+        conexion.close()
+        return  # No proceder con la inserción si la ID ya existe
+
+
+    cursor.execute("INSERT INTO Transaccion (ID_Transaccion, Persona_ID, Producto_ID, Fecha, Accion, Cantidad, Precio) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                   (id_transaccion, id_persona, id_producto, fecha, estado, cantidad, precio))
+    conexion.commit()
+    conexion.close()
+
+    # Limpiar los campos después de agregar
+    limpiar_campos_transacciones()
+    mostrar_transacciones()
+
+def actualizar_registro_transaccion():
+    # Obtener los datos del formulario
+    id_transaccion = input_transacciones_id.get()
+    id_persona = input_transacciones_id_persona.get()
+    id_producto = input_transacciones_id_producto.get()
+    fecha = input_transacciones_fecha.get()
+    estado = option_transacciones_estado.get()
+    cantidad = input_transacciones_cantidad.get()
+    precio = input_transacciones_precio.get()
+
+    if not id_transaccion or not id_persona or not id_producto or not fecha or not estado or not cantidad or precio == "Elige una Acción":
+        tk.messagebox.showwarning("Campos incompletos", "Por favor, complete todos los campos.")
+        return  # No proceder si algún campo está vacío
+
+    # Actualizar el registro correspondiente en la base de datos
+    conexion = sqlite3.connect(DB_NAME)
+    cursor = conexion.cursor()
+    cursor.execute("""
+        UPDATE Transaccion SET Persona_ID = ?, Producto_ID = ?, Fecha = ?, Accion = ?, Cantidad = ?, Precio = ? WHERE ID_Transaccion = ?
+    """, (id_persona, id_producto, fecha, estado, cantidad, precio, id_transaccion))
+    conexion.commit()
+    conexion.close()
+
+    # Limpiar los campos después de actualizar
+    limpiar_campos_transacciones()
+    mostrar_transacciones()
+
+def eliminar_registro_transaccion():
+    # Obtener la ID del producto que se va a eliminar
+    id_transaccion = input_transacciones_id.get()
+
+    # Cambiar el estado de disponible a no disponible
+    conexion = sqlite3.connect(DB_NAME)
+    cursor = conexion.cursor()
+    cursor.execute("""
+        DELETE FROM Transaccion WHERE Transaccion.ID_Transaccion = ? 
+    """, (id_transaccion,))
+    conexion.commit()
+    conexion.close()
+
+    # Limpiar los campos después de eliminar
+    limpiar_campos_transacciones()
+    mostrar_transacciones()
+
+def limpiar_campos_transacciones():
+    # Limpiar todos los campos de entrada
+    input_transacciones_id.delete(0, tk.END)
+    input_transacciones_id_persona.delete(0, tk.END)
+    input_transacciones_id_producto.delete(0, tk.END)
+    input_transacciones_fecha.delete(0, tk.END)
+    option_transacciones_estado.set("Elegir una Acción")  # Accion
+    input_transacciones_cantidad.delete(0, tk.END)
+    input_transacciones_precio.delete(0, tk.END)
+    input_transacciones_nombre_persona.delete(0, tk.END)
+    input_transacciones_apellido_persona.delete(0, tk.END)
+    input_transacciones_nombre_producto.delete(0, tk.END)
+
+    mostrar_transacciones()
 
 # Canvas 1: Barra superior
 canvas1 = tk.Canvas(root, width=1340, height=70, highlightthickness=0, bg="#292B2B")
@@ -1788,11 +1989,11 @@ btn_mostrar_todo_filtro = tk.Button(productos_page, text="Mostrar Todo", font=('
 btn_mostrar_todo_filtro.place(x=1182, y=128, width=126, height=30)
 
 
-pp_dta.create_text(90, 95, text="ID", fill="white", font=("Arial", 14), anchor="e")
-pp_dta.create_text(90, 140, text="Nombre", fill="white", font=("Arial", 14), anchor="e")
-pp_dta.create_text(90, 185, text="Cantidad", fill="white", font=("Arial", 14), anchor="e")
-pp_dta.create_text(90, 230, text="Estado", fill="white", font=("Arial", 14), anchor="e")
-pp_dta.create_text(90, 275, text="Tipo", fill="white", font=("Arial", 14), anchor="e")
+pp_dta.create_text(90, 95, text="ID", fill="white", font=("Arial", 12), anchor="e")
+pp_dta.create_text(90, 140, text="Nombre", fill="white", font=("Arial", 12), anchor="e")
+pp_dta.create_text(90, 185, text="Cantidad", fill="white", font=("Arial", 12), anchor="e")
+pp_dta.create_text(90, 230, text="Estado", fill="white", font=("Arial", 12), anchor="e")
+pp_dta.create_text(90, 275, text="Tipo", fill="white", font=("Arial", 12), anchor="e")
 
 input_productos_id = tk.Entry(productos_page, width=22, font=('Arial', 12), bg="#333538", fg="white")
 input_productos_id.place(x=424, y=191, width=254, height=26)
@@ -1906,10 +2107,10 @@ btn_mostrar_todo_filtro_personas = tk.Button(clientes_page, text="Mostrar Todo",
 btn_mostrar_todo_filtro_personas.place(x=1071, y=156, width=150, height=40)
 
 
-Contenedor_Personas.create_text(140, 150, text="RUT", fill="white", font=("Arial", 14), anchor="e")
-Contenedor_Personas.create_text(140, 192, text="Nombre", fill="white", font=("Arial", 14), anchor="e")
-Contenedor_Personas.create_text(390, 150, text="Apellido", fill="white", font=("Arial", 14), anchor="e")
-Contenedor_Personas.create_text(390, 192, text="Rol", fill="white", font=("Arial", 14), anchor="e")
+Contenedor_Personas.create_text(140, 150, text="RUT", fill="white", font=("Arial", 12), anchor="e")
+Contenedor_Personas.create_text(140, 192, text="Nombre", fill="white", font=("Arial", 12), anchor="e")
+Contenedor_Personas.create_text(390, 150, text="Apellido", fill="white", font=("Arial", 12), anchor="e")
+Contenedor_Personas.create_text(390, 192, text="Rol", fill="white", font=("Arial", 12), anchor="e")
 
 input_personas_rut = tk.Entry(clientes_page, font=('Arial', 12), bg="#333538", fg="white")
 input_personas_rut.place(x=487, y=234, width=150, height=30)
@@ -1978,15 +2179,15 @@ Contenedor_Texto_transacciones.place(x=665, y=84)
 Contenedor_Texto_transacciones_Info = dibujar_rectangulo_redondeado(Contenedor_Texto_transacciones, 0, 0, 233, 32, r=10, color="#393A3A")
 Contenedor_Texto_transacciones.create_text(116, 16, text="Detalles de Personas", fill="white", font=("Arial", 16), anchor="center")
 
-Contenedor_transacciones_Personas.create_text(80, 40, text="Nombre", fill="white", font=("Arial", 14), anchor="e")
+Contenedor_transacciones_Personas.create_text(80, 40, text="Nombre", fill="white", font=("Arial", 12), anchor="e")
 input_transacciones_nombre_persona = tk.Entry(transac_page, font=('Arial', 12), bg="#333538", fg="white")
 input_transacciones_nombre_persona.place(x=735, y=125, width=100, height=30)
 
-Contenedor_transacciones_Personas.create_text(262, 40, text="Apellido", fill="white", font=("Arial", 14), anchor="e")
+Contenedor_transacciones_Personas.create_text(262, 40, text="Apellido", fill="white", font=("Arial", 12), anchor="e")
 input_transacciones_apellido_persona = tk.Entry(transac_page, font=('Arial', 12), bg="#333538", fg="white")
 input_transacciones_apellido_persona.place(x=917, y=125, width=100, height=30)
 
-Contenedor_transacciones_Personas.create_text(451, 40, text="Producto", fill="white", font=("Arial", 14), anchor="e")
+Contenedor_transacciones_Personas.create_text(451, 40, text="Producto", fill="white", font=("Arial", 12), anchor="e")
 input_transacciones_nombre_producto = tk.Entry(transac_page, font=('Arial', 12), bg="#333538", fg="white")
 input_transacciones_nombre_producto.place(x=1106, y=125, width=100, height=30)
 
@@ -2020,13 +2221,13 @@ btn_mostrar_todo_filtro_transacciones.place(x=1172, y=198, width=140, height=30)
 
 
 
-Contenedor_transacciones.create_text(115, 60, text="ID", fill="white", font=("Arial", 14), anchor="e")
-Contenedor_transacciones.create_text(115, 110, text="Rut", fill="white", font=("Arial", 14), anchor="e")
-Contenedor_transacciones.create_text(115, 160, text="ID_Producto", fill="white", font=("Arial", 14), anchor="e")
-Contenedor_transacciones.create_text(115, 215, text="Fecha", fill="white", font=("Arial", 14), anchor="e")
-Contenedor_transacciones.create_text(115, 265, text="Acción", fill="white", font=("Arial", 14), anchor="e")
-Contenedor_transacciones.create_text(115, 320, text="Cantidad", fill="white", font=("Arial", 14), anchor="e")
-Contenedor_transacciones.create_text(115, 370, text="Precio", fill="white", font=("Arial", 14), anchor="e")
+Contenedor_transacciones.create_text(115, 60, text="ID", fill="white", font=("Arial", 12), anchor="e")
+Contenedor_transacciones.create_text(115, 110, text="Rut", fill="white", font=("Arial", 12), anchor="e")
+Contenedor_transacciones.create_text(115, 160, text="ID_Producto", fill="white", font=("Arial", 12), anchor="e")
+Contenedor_transacciones.create_text(115, 215, text="Fecha", fill="white", font=("Arial", 12), anchor="e")
+Contenedor_transacciones.create_text(115, 265, text="Acción", fill="white", font=("Arial", 12), anchor="e")
+Contenedor_transacciones.create_text(115, 320, text="Cantidad [KG]", fill="white", font=("Arial", 12), anchor="e")
+Contenedor_transacciones.create_text(115, 370, text="Precio [$]", fill="white", font=("Arial", 12), anchor="e")
 
 input_transacciones_id = tk.Entry(transac_page, font=('Arial', 12), bg="#333538", fg="white")
 input_transacciones_id.place(x=445, y=145, width=160, height=30)
@@ -2053,13 +2254,13 @@ input_transacciones_cantidad.place(x=445, y=404, width=160, height=30)
 input_transacciones_precio = tk.Entry(transac_page, font=('Arial', 12), bg="#333538", fg="white")
 input_transacciones_precio.place(x=445, y=455, width=160, height=30)
 
-btn_nueva_transac = tk.Button(transac_page, text="Nuevo", font=('Arial', 12), bg="#1F68A3", fg="white", command=agregar_nueva_persona)
+btn_nueva_transac = tk.Button(transac_page, text="Nuevo", font=('Arial', 12), bg="#1F68A3", fg="white", command=agregar_nueva_transaccion)
 btn_nueva_transac.place(x=355, y=515, width=120, height=30)
-btn_actualizar_transac = tk.Button(transac_page, text="Actualizar", font=('Arial', 12), bg="#1F68A3", fg="white", command=actualizar_registro_persona)
+btn_actualizar_transac = tk.Button(transac_page, text="Actualizar", font=('Arial', 12), bg="#1F68A3", fg="white", command=actualizar_registro_transaccion)
 btn_actualizar_transac.place(x=485, y=515, width=120, height=30)
-btn_eliminar_transac = tk.Button(transac_page, text="Eliminar", font=('Arial', 12), bg="#1F68A3", fg="white", command=eliminar_registro_persona)
+btn_eliminar_transac = tk.Button(transac_page, text="Eliminar", font=('Arial', 12), bg="#1F68A3", fg="white", command=eliminar_registro_transaccion)
 btn_eliminar_transac.place(x=355, y=555, width=120, height=30)
-btn_limpiar_transac = tk.Button(transac_page, text="Limpiar", font=('Arial', 12), bg="#1F68A3", fg="white", command=limpiar_campos_persona)
+btn_limpiar_transac = tk.Button(transac_page, text="Limpiar", font=('Arial', 12), bg="#1F68A3", fg="white", command=limpiar_campos_transacciones)
 btn_limpiar_transac.place(x=485, y=555, width=120, height=30)
 
 # Tabla para mostrar productos
@@ -2084,7 +2285,7 @@ tabla_transacciones.column("Precio", width=100, anchor="w", stretch=True)
 tabla_transacciones.place(x=650, y=261, width=680, height=349)
 
 # Asociar el evento de clic a la tabla para cargar la información al seleccionar un producto
-tabla_transacciones.bind("<ButtonRelease-1>", cargar_registro_seleccionado_persona)
+tabla_transacciones.bind("<ButtonRelease-1>", cargar_registro_seleccionado_transaccion)
 
 
 create_database()
