@@ -1388,12 +1388,12 @@ def agregar_nueva_transaccion():
     id_persona = input_transacciones_id_persona.get()
     id_producto = input_transacciones_id_producto.get()
     fecha = input_transacciones_fecha.get()
-    estado = option_transacciones_estado.get()
-    cantidad = input_transacciones_cantidad.get()
+    accion = option_transacciones_estado.get()
+    cantidad = int(input_transacciones_cantidad.get())
     precio = input_transacciones_precio.get()
 
 
-    if not id_transaccion or not id_persona or not id_producto or not fecha or not estado or not cantidad or precio == "Elige una Acción":
+    if not id_transaccion or not id_persona or not id_producto or not fecha or not accion or not cantidad or precio == "Elige una Acción":
         tk.messagebox.showwarning("Campos incompletos", "Por favor, complete todos los campos.")
         return  # No proceder si algún campo está vacío
 
@@ -1402,18 +1402,55 @@ def agregar_nueva_transaccion():
     conexion = sqlite3.connect(DB_NAME)
     cursor = conexion.cursor()
 
-    # Verificar si la ID ya existe en la tabla Transaccion
+    # Verificar si la ID de la transacción ya existe
     cursor.execute("SELECT ID_Transaccion FROM Transaccion WHERE ID_Transaccion = ?", (id_transaccion,))
-    existe = cursor.fetchone()  # Obtener el resultado de la consulta
+    existe = cursor.fetchone()
 
     if existe:
         tk.messagebox.showerror("Error", "La ID de la transacción ya existe. Introduzca una diferente.")
         conexion.close()
         return  # No proceder con la inserción si la ID ya existe
 
+    # Obtener el estado y stock actual del producto
+    cursor.execute("SELECT Cantidad, Estado FROM Productos WHERE ID_Producto = ?", (id_producto,))
+    resultado = cursor.fetchone()
 
+    if not resultado:
+        tk.messagebox.showerror("Error", "El producto no existe en la base de datos.")
+        conexion.close()
+        return
+    
+    stock_actual, estado_producto = resultado
+
+    # Verificar si el producto está disponible antes de proceder con la venta
+    if accion == "Venta":
+        if estado_producto.lower() == "no disponible":
+            tk.messagebox.showerror("Error", "No se puede realizar la transacción. El producto está 'No Disponible'.")
+            conexion.close()
+            return
+        
+        if stock_actual < cantidad:
+            tk.messagebox.showerror("Error", "No se puede realizar la venta. El stock es insuficiente.")
+            conexion.close()
+            return
+
+        if stock_actual == cantidad:
+                cursor.execute("UPDATE Productos SET Estado = ? WHERE ID_Producto = ?", ("No Disponible", id_producto))
+
+        # Actualizar stock del producto después de validar la venta
+        nuevo_stock = stock_actual - cantidad
+        cursor.execute("UPDATE Productos SET Cantidad = ? WHERE ID_Producto = ?", (nuevo_stock, id_producto))
+
+    elif accion == "Compra":
+        # Aumentar stock al realizar una compra
+        nuevo_stock = stock_actual + cantidad
+        cursor.execute("UPDATE Productos SET Cantidad = ? WHERE ID_Producto = ?", (nuevo_stock, id_producto))
+
+    # Insertar la transacción solo si pasa las validaciones
     cursor.execute("INSERT INTO Transaccion (ID_Transaccion, Persona_ID, Producto_ID, Fecha, Accion, Cantidad, Precio) VALUES (?, ?, ?, ?, ?, ?, ?)",
-                   (id_transaccion, id_persona, id_producto, fecha, estado, cantidad, precio))
+                   (id_transaccion, id_persona, id_producto, fecha, accion, cantidad, precio))
+
+    # Confirmar los cambios
     conexion.commit()
     conexion.close()
 
