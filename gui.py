@@ -138,6 +138,20 @@ def actualizar_contenido():
     mostrar_productos()
     mostrar_personas()
     mostrar_transacciones()
+    main_page.after(100, actualizar_menu)
+
+def actualizar_menu():
+    opciones = obtenerProductos_informe()  # Obtener productos actualizados
+    menu_opcion_producto_informe["menu"].delete(0, "end")  # Borrar opciones anteriores
+
+    # Agregar las nuevas opciones
+    for opcion in opciones:
+        menu_opcion_producto_informe["menu"].add_command(
+            label=opcion, command=lambda value=opcion: opcion_producto_informe.set(value)
+        )
+    
+    # Restablecer el texto inicial del menú después de actualizar
+    opcion_producto_informe.set("Seleccione un producto")
 
 # Función para hacer una copia de seguridad
 def hacer_copia_seguridad():
@@ -1115,6 +1129,7 @@ def agregar_nuevo():
     # Limpiar los campos después de agregar
     limpiar_campos()
     mostrar_productos()
+    actualizar_contenido()
 
 def actualizar_registro():
     # Obtener los datos del formulario
@@ -1141,6 +1156,7 @@ def actualizar_registro():
     # Limpiar los campos después de actualizar
     limpiar_campos()
     mostrar_productos()
+    actualizar_contenido()
 
 def eliminar_registro():
     # Obtener la ID del producto que se va a eliminar
@@ -1158,6 +1174,7 @@ def eliminar_registro():
     # Limpiar los campos después de eliminar
     limpiar_campos()
     mostrar_productos()
+    actualizar_contenido()
 
 def limpiar_campos():
     # Limpiar todos los campos de entrada
@@ -1169,6 +1186,7 @@ def limpiar_campos():
     input_productos_cantidad.delete(0, tk.END)
     option_productos_estado.set("Seleccione un Estado")
     mostrar_productos()
+    actualizar_contenido()
 
 def obtener_personas_filtrados(filtro, busqueda):
     conn = sqlite3.connect(DB_NAME)
@@ -1215,6 +1233,7 @@ def cargar_registro_seleccionado_persona(event):
     input_personas_apellido.insert(0, personas[2])  # Apellido
 
     option_personas_estado.set(personas[3])  # Rol
+    actualizar_contenido()
 
 def agregar_nueva_persona():
     # Verificar que todos los campos estén completos antes de agregar el producto
@@ -1249,6 +1268,7 @@ def agregar_nueva_persona():
     # Limpiar los campos después de agregar
     limpiar_campos_persona()
     mostrar_personas()
+    actualizar_contenido()
 
 def actualizar_registro_persona():
     # Obtener los datos del formulario
@@ -1273,6 +1293,7 @@ def actualizar_registro_persona():
     # Limpiar los campos después de actualizar
     limpiar_campos_persona()
     mostrar_personas()
+    actualizar_contenido()
 
 def eliminar_registro_persona():
     # Obtener la ID del producto que se va a eliminar
@@ -1290,6 +1311,7 @@ def eliminar_registro_persona():
     # Limpiar los campos después de eliminar
     limpiar_campos_persona()
     mostrar_personas()
+    actualizar_contenido()
 
 def limpiar_campos_persona():
     # Limpiar todos los campos de entrada
@@ -1300,6 +1322,7 @@ def limpiar_campos_persona():
     input_personas_apellido.delete(0, tk.END)
     option_personas_estado.set("Elegir un Rol")
     mostrar_personas()
+    actualizar_contenido()
 
 def obtener_transacciones_filtrados(filtro, busqueda):
     conn = sqlite3.connect(DB_NAME)
@@ -1309,17 +1332,17 @@ def obtener_transacciones_filtrados(filtro, busqueda):
     if filtro == "ID":
         cursor.execute("SELECT * FROM Transaccion WHERE ID_Transaccion = ?", (f'{busqueda}',))
     elif filtro == "Rut_Persona":
-        cursor.execute("SELECT * FROM Transaccion WHERE Persona_ID LIKE ?", (f"%{busqueda}%",))
+        cursor.execute("SELECT * FROM Transaccion WHERE Persona_ID = ?", (f"{busqueda}",))
     elif filtro == "ID_Producto":
-        cursor.execute("SELECT * FROM Transaccion WHERE Producto_ID LIKE ?", (f"%{busqueda}%",))
+        cursor.execute("SELECT * FROM Transaccion WHERE Producto_ID = ?", (f"{busqueda}",))
     elif filtro == "Fecha":
-        cursor.execute("SELECT * FROM Transaccion WHERE Fecha LIKE ?", (f'{busqueda}',))
+        cursor.execute("SELECT * FROM Transaccion WHERE Fecha = ?", (f'{busqueda}',))
     elif filtro == "Accion":
         cursor.execute("SELECT * FROM Transaccion WHERE Accion = ?", (f'{busqueda}',))
     elif filtro == "Cantidad":
-        cursor.execute("SELECT * FROM Transaccion WHERE Cantidad LIKE ?", (f'{busqueda}',))
+        cursor.execute("SELECT * FROM Transaccion WHERE Cantidad = ?", (f'{busqueda}',))
     elif filtro == "Precio":
-        cursor.execute("SELECT * FROM Transaccion WHERE Precio LIKE ?", (f'{busqueda}',))
+        cursor.execute("SELECT * FROM Transaccion WHERE Precio = ?", (f'{busqueda}',))
     # Recuperar los resultados
     transacciones = cursor.fetchall()
 
@@ -1381,6 +1404,7 @@ def cargar_registro_seleccionado_transaccion(event):
 
     input_transacciones_nombre_producto.delete(0, tk.END)
     input_transacciones_nombre_producto.insert(0, producto_nombre_transaccion)  # Nombre Producto Transaccion
+    actualizar_contenido()
 
 def agregar_nueva_transaccion():
     # Verificar que todos los campos estén completos antes de agregar el producto
@@ -1457,6 +1481,7 @@ def agregar_nueva_transaccion():
     # Limpiar los campos después de agregar
     limpiar_campos_transacciones()
     mostrar_transacciones()
+    actualizar_contenido()
 
 def actualizar_registro_transaccion():
     # Obtener los datos del formulario
@@ -1484,6 +1509,7 @@ def actualizar_registro_transaccion():
     # Limpiar los campos después de actualizar
     limpiar_campos_transacciones()
     mostrar_transacciones()
+    actualizar_contenido()
 
 def eliminar_registro_transaccion():
     # Obtener la ID del producto que se va a eliminar
@@ -1501,6 +1527,7 @@ def eliminar_registro_transaccion():
     # Limpiar los campos después de eliminar
     limpiar_campos_transacciones()
     mostrar_transacciones()
+    actualizar_contenido()
 
 def limpiar_campos_transacciones():
     # Limpiar todos los campos de entrada
@@ -1516,6 +1543,74 @@ def limpiar_campos_transacciones():
     input_transacciones_nombre_producto.delete(0, tk.END)
 
     mostrar_transacciones()
+    actualizar_contenido()
+
+def obtenerProductos_informe():
+        # Obtener productos y clientes desde la base de datos
+    try:
+        conn = sqlite3.connect(DB_NAME)
+        cursor = conn.cursor()
+
+        # Obtener productos
+        cursor.execute("SELECT ID_Producto, Nombre FROM Productos")
+        productos = cursor.fetchall()
+        productos_dict_informe = {f"{nombre}": id_producto for id_producto, nombre in productos}
+        conn.close()
+
+        return productos_dict_informe.keys()
+    except sqlite3.Error as e:
+        messagebox.showerror("Error", f"No se pudo cargar los datos: {e}")
+        return
+
+def ejecutar_consulta(*args):
+    DB_NAME = "productos.db"
+
+    conexion = sqlite3.connect(DB_NAME)
+    cursor = conexion.cursor()
+    mes = opcion_mes_informe.get()
+    producto = opcion_producto_informe.get()
+    if mes in meses_dict:
+        mes_numero = meses_dict[mes]
+    else:
+        return  # Salir de la función si el mes no es válido
+    mes_str = f"{mes_numero:02d}"
+    # Verificar si ambos valores han sido seleccionados
+    if mes != "Seleccione un filtro" and producto != "Seleccione un producto":
+        print(f"Ejecutando consulta para el mes: {mes_str}, producto: {producto}")
+        
+        query = """
+        SELECT 
+            SUM(CASE WHEN Accion = 'Venta' THEN Precio ELSE 0 END) AS Venta,
+            SUM(CASE WHEN Accion = 'Venta' THEN Transaccion.Cantidad ELSE 0 END) AS Peso_Ventas,
+            SUM(CASE WHEN Accion = 'Compra' THEN Precio ELSE 0 END) AS Compras,
+            SUM(CASE WHEN Accion = 'Compra' THEN Transaccion.Cantidad ELSE 0 END) AS Peso_Compras,
+            Productos.Cantidad
+        FROM Transaccion 
+        INNER JOIN Productos ON Transaccion.Producto_ID = Productos.ID_Producto
+        WHERE 
+            (substr(Transaccion.Fecha, 4, 2) = ?)
+            AND (Productos.Nombre = ?)
+        GROUP BY Productos.ID_Producto;
+        """
+
+        # Actualizar el texto del canvas
+        #client_btn.itemconfig(texto_canvas, text=f"{conteo_clientes}")
+
+        # Ejecutar la consulta con los parámetros
+        cursor.execute(query, (mes_str, producto))
+        resultado = cursor.fetchone()
+        
+        Precio_Ventas = resultado[0]
+        Peso_Ventas = resultado[1]
+        Precio_Compras = resultado[2]
+        Peso_Compras = resultado[3]
+        Stock = resultado[4]
+
+        # Cerrar conexión
+        cursor.close()
+        conexion.close()
+
+
 
 # Canvas 1: Barra superior
 canvas1 = tk.Canvas(root, width=1340, height=70, highlightthickness=0, bg="#292B2B")
@@ -2324,6 +2419,72 @@ tabla_transacciones.place(x=650, y=261, width=680, height=349)
 # Asociar el evento de clic a la tabla para cargar la información al seleccionar un producto
 tabla_transacciones.bind("<ButtonRelease-1>", cargar_registro_seleccionado_transaccion)
 
+#Contenedor de los detalles del producto
+Contenedor_informes = tk.Canvas(reports_page, width=360, height=170, highlightthickness=0, bg="#232323")
+Contenedor_informes.place(x=320, y=115)
+dibujar_rectangulo_redondeado(Contenedor_informes, 0, 0, 360, 170, r=10, color="#2A2B2A")
+
+Contenedor_Texto_informes = tk.Canvas(reports_page, width=310, height=36, highlightthickness=0, bg="#2A2B2A")
+Contenedor_Texto_informes.place(x=345, y=100)
+Contenedor_Texto_informes_Info = dibujar_rectangulo_redondeado(Contenedor_Texto_informes, 0, 0, 310, 36, r=10, color="#393A3A")
+Contenedor_Texto_informes.create_text(155, 18, text="Detalles de Transacciones", fill="white", font=("Arial", 16), anchor="center")
+
+Contenedor_informes_ventas_precio = tk.Canvas(reports_page, width=170, height=85, highlightthickness=0, bg="#232323")
+Contenedor_informes_ventas_precio.place(x=320, y=305)
+Contenedor_informes_ventas_precio.create_text(85, 45, text="Ventas", fill="white", font=("Arial", 12, "bold"), anchor="center")
+ci_ventas_precio = Contenedor_informes_ventas_precio.create_text(85, 65, text="0", fill="white", font=("Arial", 12, "bold"), anchor="center")
+dibujar_rectangulo_redondeado(Contenedor_informes, 0, 0, 170, 85, r=10, color="#2A2B2A")
+
+Contenedor_informes_ventas_peso = tk.Canvas(reports_page, width=170, height=85, highlightthickness=0, bg="#232323")
+Contenedor_informes_ventas_peso.place(x=320, y=410)
+Contenedor_informes_ventas_peso.create_text(85, 45, text="Ventas", fill="white", font=("Arial", 12, "bold"), anchor="center")
+ci_ventas_peso = Contenedor_informes_ventas_peso.create_text(85, 65, text="0", fill="white", font=("Arial", 12, "bold"), anchor="center")
+dibujar_rectangulo_redondeado(Contenedor_informes, 0, 0, 170, 85, r=10, color="#2A2B2A")
+
+Contenedor_informes_compras_precio = tk.Canvas(reports_page, width=170, height=85, highlightthickness=0, bg="#232323")
+Contenedor_informes_compras_precio.place(x=510, y=305)
+Contenedor_informes_compras_precio.create_text(85, 45, text="Compras", fill="white", font=("Arial", 12, "bold"), anchor="center")
+ci_compras_precio = Contenedor_informes_compras_precio.create_text(85, 65, text="0", fill="white", font=("Arial", 12, "bold"), anchor="center")
+dibujar_rectangulo_redondeado(Contenedor_informes, 0, 0, 170, 85, r=10, color="#2A2B2A")
+
+Contenedor_informes_compras_peso = tk.Canvas(reports_page, width=170, height=85, highlightthickness=0, bg="#232323")
+Contenedor_informes_compras_peso.place(x=510, y=410)
+Contenedor_informes_compras_peso.create_text(85, 45, text="Compras", fill="white", font=("Arial", 12, "bold"), anchor="center")
+ci_compras_peso = Contenedor_informes_compras_peso.create_text(85, 65, text="0", fill="white", font=("Arial", 12, "bold"), anchor="center")
+dibujar_rectangulo_redondeado(Contenedor_informes, 0, 0, 170, 85, r=10, color="#2A2B2A")
+
+Contenedor_informes_stock = tk.Canvas(reports_page, width=360, height=83, highlightthickness=0, bg="#232323")
+Contenedor_informes_stock.place(x=320, y=515)
+Contenedor_informes_stock.create_text(180, 45, text="Stock", fill="white", font=("Arial", 12, "bold"), anchor="center")
+ci_stock = Contenedor_informes_stock.create_text(180, 65, text="0", fill="white", font=("Arial", 12, "bold"), anchor="center")
+dibujar_rectangulo_redondeado(Contenedor_informes, 0, 0, 360, 83, r=10, color="#2A2B2A")
+
+opcion_mes_informe = tk.StringVar()
+opcion_mes_informe.set("Seleccione un filtro") # Texto inicial filtro
+
+opcion_mes_informe_opciones = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"]
+
+menu_opcion_mes_informe = tk.OptionMenu(reports_page, opcion_mes_informe, *opcion_mes_informe_opciones)
+menu_opcion_mes_informe.config(font=("Arial", 12), bg="#1F68A3", fg="white",highlightthickness=0)
+menu_opcion_mes_informe.place(x=335, y=222, width=330, height=40)
+
+
+
+opcion_producto_informe = tk.StringVar()
+opcion_producto_informe.set("Seleccione un filtro") # Texto inicial filtro
+
+meses_dict = {
+    "Enero": 1, "Febrero": 2, "Marzo": 3, "Abril": 4, "Mayo": 5, "Junio": 6,
+    "Julio": 7, "Agosto": 8, "Septiembre": 9, "Octubre": 10, "Noviembre": 11, "Diciembre": 12
+}
+
+menu_opcion_producto_informe = tk.OptionMenu(reports_page, opcion_producto_informe, *meses_dict.keys())
+menu_opcion_producto_informe.config(font=("Arial", 12), bg="#1F68A3", fg="white",highlightthickness=0)
+menu_opcion_producto_informe.place(x=335, y=162, width=330, height=40)
+
+# --- Vincular eventos ---
+opcion_mes_informe.trace_add("write", ejecutar_consulta)
+opcion_producto_informe.trace_add("write", ejecutar_consulta)
 
 create_database()
 actualizar_contenido()
