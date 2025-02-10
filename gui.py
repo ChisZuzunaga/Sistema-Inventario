@@ -6,6 +6,8 @@ import pandas as pd
 from tkinter import ttk, messagebox, filedialog, Listbox, Scrollbar
 from datetime import datetime
 from PIL import Image, ImageTk  # Usado para cargar imágenes JPG/PNG
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+import matplotlib.pyplot as plt
 
 root = tk.Tk()
 root.title("Sistema de Inventario")
@@ -30,7 +32,7 @@ main_page = tk.Frame(root, bg="#232323")  # Pestaña 1
 clientes_page = tk.Frame(root, bg="#232323")  # Pestaña 2
 productos_page = tk.Frame(root, bg="#232323")  # Pestaña 3
 transac_page = tk.Frame(root, bg="#232323")  # Pestaña 4
-reports_page = tk.Frame(root, bg="#AAAAAA")  # Pestaña 5
+reports_page = tk.Frame(root, bg="#232323")  # Pestaña 5
 config_page = tk.Frame(root, bg="#232323")  # Pestaña 6
 
 frames = [main_page, clientes_page, productos_page, transac_page, reports_page, config_page]
@@ -376,6 +378,8 @@ def mostrar_pestaña(selected_tab):
             canvas2.itemconfig(tab_info["text_tag"], fill="#1F68A3")  # Texto activo
             tabs[tab_name]["active_image"] = active_image  # Mantener referencia
             actualizar_contenido()
+            if tab_name == "reportes":
+                inicializar_graficos()
         else:
             # Cambiar a la imagen por defecto
             default_image = ImageTk.PhotoImage(Image.open(tab_info["image_default"]))
@@ -383,7 +387,7 @@ def mostrar_pestaña(selected_tab):
             canvas2.itemconfig(tab_info["text_tag"], fill="white")  # Texto inactivo
             tabs[tab_name]["default_image"] = default_image  # Mantener referencia
             actualizar_contenido()
-
+    
 def validar_numero(event, campo, label_error):
     """Valida que solo se ingresen números en el campo."""
     entrada = campo.get()
@@ -1161,20 +1165,28 @@ def actualizar_registro():
 def eliminar_registro():
     # Obtener la ID del producto que se va a eliminar
     id_producto = input_productos_id.get()
+    
+    # Mostrar la ventana de confirmación
+    confirmacion = messagebox.askyesno("Confirmar eliminación", f"¿Estás seguro de que deseas eliminar el producto con ID: {id_producto}?")
+    
+    if confirmacion:  # Si el usuario confirma la eliminación
+        # Cambiar el estado de disponible a no disponible
+        conexion = sqlite3.connect(DB_NAME)
+        cursor = conexion.cursor()
+        cursor.execute("""
+            DELETE FROM Productos WHERE ID_Producto = ?
+        """, (id_producto,))
+        conexion.commit()
+        conexion.close()
 
-    # Cambiar el estado de disponible a no disponible
-    conexion = sqlite3.connect(DB_NAME)
-    cursor = conexion.cursor()
-    cursor.execute("""
-        UPDATE Productos SET Estado = ? WHERE ID_Producto = ?
-    """, ("No Disponible", id_producto))
-    conexion.commit()
-    conexion.close()
+        # Limpiar los campos después de eliminar
+        limpiar_campos()
+        mostrar_productos()
+        actualizar_contenido()
 
-    # Limpiar los campos después de eliminar
-    limpiar_campos()
-    mostrar_productos()
-    actualizar_contenido()
+    else:
+        # Si el usuario cancela, solo imprime un mensaje (o puedes agregar otro comportamiento)
+        print("Eliminación cancelada.")
 
 def limpiar_campos():
     # Limpiar todos los campos de entrada
@@ -1562,23 +1574,66 @@ def obtenerProductos_informe():
         messagebox.showerror("Error", f"No se pudo cargar los datos: {e}")
         return
 
-def ejecutar_consulta(*args):
-    DB_NAME = "productos.db"
+def inicializar_graficos():
+    # Llamar a crear_grafico con listas vacías para mostrar gráficos vacíos
+    dias_vacios = []
+    crear_grafico(dias_vacios, [], "Compras ($)", grafico_compras_precio, 710, 115)
+    crear_grafico(dias_vacios, [], "Compras (Kg)", grafico_compras_peso, 710, 365)
+    crear_grafico(dias_vacios, [], "Ventas ($)", grafico_ventas_precio, 1023, 115)
+    crear_grafico(dias_vacios, [], "Ventas (Kg)", grafico_ventas_peso, 1023, 365)
 
+def ejecutar_consulta(*args):
     conexion = sqlite3.connect(DB_NAME)
     cursor = conexion.cursor()
     mes = opcion_mes_informe.get()
     producto = opcion_producto_informe.get()
+
     if mes in meses_dict:
         mes_numero = meses_dict[mes]
     else:
         return  # Salir de la función si el mes no es válido
+    
     mes_str = f"{mes_numero:02d}"
-    # Verificar si ambos valores han sido seleccionados
     if mes != "Seleccione un filtro" and producto != "Seleccione un producto":
         print(f"Ejecutando consulta para el mes: {mes_str}, producto: {producto}")
         
         query = """
+        SELECT 
+            SUBSTR(Transaccion.Fecha, 1, 2) AS Dia, 
+            SUM(CASE WHEN Accion = 'Venta' THEN Precio ELSE 0 END) AS Venta,
+            SUM(CASE WHEN Accion = 'Venta' THEN Transaccion.Cantidad ELSE 0 END) AS Peso_Ventas,
+            SUM(CASE WHEN Accion = 'Compra' THEN Precio ELSE 0 END) AS Compras,
+            SUM(CASE WHEN Accion = 'Compra' THEN Transaccion.Cantidad ELSE 0 END) AS Peso_Compras,
+            Productos.Cantidad
+        FROM Transaccion 
+        INNER JOIN Productos ON Transaccion.Producto_ID = Productos.ID_Producto
+        WHERE 
+            SUBSTR(Transaccion.Fecha, 4, 2) = ? AND (Productos.Nombre = ?)
+        GROUP BY Dia
+        ORDER BY Dia;
+        """
+
+        # Ejecutar la consulta con los parámetros
+        cursor.execute(query, (mes_str, producto))
+        resultado = cursor.fetchall()
+
+        # Si hay datos, extraer valores para los gráficos
+        if resultado:
+            dias = [fila[0] for fila in resultado]
+            ventas_precio = [fila[1] for fila in resultado]
+            ventas_peso = [fila[2] for fila in resultado]
+            compras_precio = [fila[3] for fila in resultado]
+            compras_peso = [fila[4] for fila in resultado]
+            stock = [fila[5] for fila in resultado]
+        else:
+            dias = []
+            ventas_precio = []
+            ventas_peso = []
+            compras_precio = []
+            compras_peso = []
+            stock = []
+
+        query2 = """
         SELECT 
             SUM(CASE WHEN Accion = 'Venta' THEN Precio ELSE 0 END) AS Venta,
             SUM(CASE WHEN Accion = 'Venta' THEN Transaccion.Cantidad ELSE 0 END) AS Peso_Ventas,
@@ -1593,24 +1648,125 @@ def ejecutar_consulta(*args):
         GROUP BY Productos.ID_Producto;
         """
 
-        # Actualizar el texto del canvas
-        #client_btn.itemconfig(texto_canvas, text=f"{conteo_clientes}")
-
         # Ejecutar la consulta con los parámetros
-        cursor.execute(query, (mes_str, producto))
-        resultado = cursor.fetchone()
+        cursor.execute(query2, (mes_str, producto))
+        resultado2 = cursor.fetchone()
         
-        Precio_Ventas = resultado[0]
-        Peso_Ventas = resultado[1]
-        Precio_Compras = resultado[2]
-        Peso_Compras = resultado[3]
-        Stock = resultado[4]
+        if resultado:
+            Precio_Ventas = resultado2[0]
+            Peso_Ventas = resultado2[1]
+            Precio_Compras = resultado2[2]
+            Peso_Compras = resultado2[3]
+            Stock2 = resultado2[4]
+        else:
+            Precio_Ventas = 0
+            Peso_Ventas = 0
+            Precio_Compras = 0
+            Peso_Compras = 0
+            Stock2 = 0
 
-        # Cerrar conexión
         cursor.close()
         conexion.close()
 
+        Contenedor_informes_ventas_precio.itemconfig(ci_ventas_precio, text=f"$ {Precio_Ventas}")
+        Contenedor_informes_ventas_peso.itemconfig(ci_ventas_peso, text=f"{Peso_Ventas} [KG]")
+        Contenedor_informes_compras_precio.itemconfig(ci_compras_precio, text=f"$ {Precio_Compras}")
+        Contenedor_informes_compras_peso.itemconfig(ci_compras_peso, text=f"{Peso_Compras} [KG]")
+        Contenedor_informes_stock.itemconfig(ci_stock, text=f"{Stock2} [KG]")
 
+        # Generar gráficos
+        crear_grafico(dias, compras_precio, "Compras ($)", grafico_compras_precio, 710, 115)
+        crear_grafico(dias, compras_peso, "Compras (Kg)", grafico_compras_peso, 710, 365)
+        crear_grafico(dias, ventas_precio, "Ventas ($)", grafico_ventas_precio, 1023, 115)
+        crear_grafico(dias, ventas_peso, "Ventas (Kg)", grafico_ventas_peso, 1023, 365)
+
+# Función para crear gráficos de barras en un `Canvas`
+def crear_grafico(x_values, y_values, titulo, parent_canvas, x, y):
+    fig, ax = plt.subplots(figsize=(5, 5), dpi=57)
+
+    fig.patch.set_facecolor("#2A2B2A")  # Fondo de la figura
+    ax.set_facecolor("#2A2B2A")         # Fondo del gráfico
+    ax.bar(x_values, y_values, color="#1e90ff")  # Azul oscuro
+    
+    ax.set_title(titulo, fontsize=10, fontweight="bold", color="white")
+    ax.set_xlabel("Día", color="white")
+    ax.set_ylabel("Cantidad", color="white")
+    ax.tick_params(colors="white")  # Color de los números del eje
+    
+    for spine in ax.spines.values():
+        spine.set_edgecolor("white")
+
+
+    ax.set_title(titulo, fontsize=12, fontweight="bold")
+    ax.set_xlabel("Día")
+    ax.set_ylabel("Cantidad")
+    ax.set_xticks(x_values)
+    ax.set_xticklabels(x_values, rotation=45, fontsize=12)
+    
+    ax.set_ylim(0, max(y_values) * 1.2 if y_values else 10)  # Asegurar que empiece en 0
+    ax.grid(axis="y", linestyle="--", alpha=0.7)
+
+    canvas_grafico = FigureCanvasTkAgg(fig, master=reports_page)
+    widget_grafico = canvas_grafico.get_tk_widget()
+    widget_grafico.place(x=x, y=y, width=280, height=230)  # Ajuste de tamaño
+    widget_grafico.bind("<Button-1>", lambda event: abrir_grafico_ampliado(x_values, y_values, titulo))
+    
+    canvas_grafico.draw()
+
+def abrir_grafico_ampliado(x_values, y_values, titulo):
+    ventana = tk.Toplevel(root)
+    ventana.title("Gráfico Ampliado")
+    ventana.geometry("800x600")
+    
+    fig, ax = plt.subplots(figsize=(5, 3), dpi=100)
+    
+    # 🎨 Modo oscuro en ventana ampliada
+    fig.patch.set_facecolor("#2A2B2A")
+    ax.set_facecolor("#2A2B2A")
+    ax.bar(x_values, y_values, color="#1e90ff")
+    
+    # 🎨 Estilización
+    ax.set_title(titulo, fontsize=12, fontweight="bold", color="white")
+    ax.set_xlabel("Día", color="white")
+    ax.set_ylabel("Cantidad", color="white")
+    ax.tick_params(colors="white")
+    
+    for spine in ax.spines.values():
+        spine.set_edgecolor("white")
+    
+    ax.set_ylim(0, max(y_values) * 1.2 if y_values else 10)
+    ax.grid(axis="y", linestyle="--", alpha=0.3, color="white")
+    
+    canvas_grafico = FigureCanvasTkAgg(fig, master=ventana)
+    canvas_grafico.get_tk_widget().pack(expand=True, fill="both")
+    canvas_grafico.draw()
+
+def crear_grafico_vacio(titulo, x, y):
+    """Crea un gráfico en blanco en la posición indicada y lo almacena en un diccionario global."""
+    fig, ax = plt.subplots(figsize=(4, 3), dpi=60)  # 🔹 Ajusta el tamaño del gráfico
+    
+    fig.patch.set_facecolor("#2A2B2A")
+    ax.set_facecolor("#2A2B2A")
+
+    ax.set_title(titulo, fontsize=10, fontweight="bold", color="white")
+    ax.set_xlabel("Día", color="white")
+    ax.set_ylabel("Cantidad", color="white")
+    ax.tick_params(colors="white")
+
+    for spine in ax.spines.values():
+        spine.set_edgecolor("white")
+
+    ax.set_ylim(0, 10)  # 🔹 Asegura que el gráfico no genere valores automáticos
+    ax.set_xlim(-1, 1)  # 🔹 Agrega un límite para evitar redimensionamiento
+    ax.grid(axis="y", linestyle="--", alpha=0.7, color="white")
+
+    # 📌 Agregar gráfico a la interfaz
+    canvas_grafico = FigureCanvasTkAgg(fig, master=reports_page)
+    widget_grafico = canvas_grafico.get_tk_widget()
+    widget_grafico.place(x=x, y=y, width=280, height=230)
+    widget_grafico.bind("<Button-1>", lambda event: abrir_grafico_ampliado([], [], titulo))
+
+    canvas_grafico.draw()
 
 # Canvas 1: Barra superior
 canvas1 = tk.Canvas(root, width=1340, height=70, highlightthickness=0, bg="#292B2B")
@@ -2431,33 +2587,49 @@ Contenedor_Texto_informes.create_text(155, 18, text="Detalles de Transacciones",
 
 Contenedor_informes_ventas_precio = tk.Canvas(reports_page, width=170, height=85, highlightthickness=0, bg="#232323")
 Contenedor_informes_ventas_precio.place(x=320, y=305)
+dibujar_rectangulo_redondeado(Contenedor_informes_ventas_precio, 0, 0, 170, 85, r=10, color="#2A2B2A")
 Contenedor_informes_ventas_precio.create_text(85, 45, text="Ventas", fill="white", font=("Arial", 12, "bold"), anchor="center")
-ci_ventas_precio = Contenedor_informes_ventas_precio.create_text(85, 65, text="0", fill="white", font=("Arial", 12, "bold"), anchor="center")
-dibujar_rectangulo_redondeado(Contenedor_informes, 0, 0, 170, 85, r=10, color="#2A2B2A")
+ci_ventas_precio = Contenedor_informes_ventas_precio.create_text(85, 65, text="$ 0", fill="white", font=("Arial", 12, "bold"), anchor="center")
+ventas_precio_img_original = Image.open("Img/Sell_Money.png")  # Cambia la ruta por la de tu imagen
+ventas_precio_img = ImageTk.PhotoImage(ventas_precio_img_original)
+ventas_precio_img_itm = Contenedor_informes_ventas_precio.create_image(70, 5, image=ventas_precio_img, anchor="nw")
 
 Contenedor_informes_ventas_peso = tk.Canvas(reports_page, width=170, height=85, highlightthickness=0, bg="#232323")
 Contenedor_informes_ventas_peso.place(x=320, y=410)
+dibujar_rectangulo_redondeado(Contenedor_informes_ventas_peso, 0, 0, 170, 85, r=10, color="#2A2B2A")
 Contenedor_informes_ventas_peso.create_text(85, 45, text="Ventas", fill="white", font=("Arial", 12, "bold"), anchor="center")
-ci_ventas_peso = Contenedor_informes_ventas_peso.create_text(85, 65, text="0", fill="white", font=("Arial", 12, "bold"), anchor="center")
-dibujar_rectangulo_redondeado(Contenedor_informes, 0, 0, 170, 85, r=10, color="#2A2B2A")
+ci_ventas_peso = Contenedor_informes_ventas_peso.create_text(85, 65, text="0 [KG]", fill="white", font=("Arial", 12, "bold"), anchor="center")
+ventas_peso_img_original = Image.open("Img/Sell_Weight.png")  # Cambia la ruta por la de tu imagen
+ventas_peso_img = ImageTk.PhotoImage(ventas_peso_img_original)
+ventas_peso_img_itm = Contenedor_informes_ventas_peso.create_image(70, 5, image=ventas_peso_img, anchor="nw")
+
 
 Contenedor_informes_compras_precio = tk.Canvas(reports_page, width=170, height=85, highlightthickness=0, bg="#232323")
 Contenedor_informes_compras_precio.place(x=510, y=305)
+dibujar_rectangulo_redondeado(Contenedor_informes_compras_precio, 0, 0, 170, 85, r=10, color="#2A2B2A")
 Contenedor_informes_compras_precio.create_text(85, 45, text="Compras", fill="white", font=("Arial", 12, "bold"), anchor="center")
-ci_compras_precio = Contenedor_informes_compras_precio.create_text(85, 65, text="0", fill="white", font=("Arial", 12, "bold"), anchor="center")
-dibujar_rectangulo_redondeado(Contenedor_informes, 0, 0, 170, 85, r=10, color="#2A2B2A")
+ci_compras_precio = Contenedor_informes_compras_precio.create_text(85, 65, text="$ 0", fill="white", font=("Arial", 12, "bold"), anchor="center")
+compras_precio_img_original = Image.open("Img/Buys_Money.png")  # Cambia la ruta por la de tu imagen
+compras_precio_img = ImageTk.PhotoImage(compras_precio_img_original)
+compras_precio_img_itm = Contenedor_informes_compras_precio.create_image(70, 5, image=compras_precio_img, anchor="nw")
 
 Contenedor_informes_compras_peso = tk.Canvas(reports_page, width=170, height=85, highlightthickness=0, bg="#232323")
 Contenedor_informes_compras_peso.place(x=510, y=410)
+dibujar_rectangulo_redondeado(Contenedor_informes_compras_peso, 0, 0, 170, 85, r=10, color="#2A2B2A")
 Contenedor_informes_compras_peso.create_text(85, 45, text="Compras", fill="white", font=("Arial", 12, "bold"), anchor="center")
-ci_compras_peso = Contenedor_informes_compras_peso.create_text(85, 65, text="0", fill="white", font=("Arial", 12, "bold"), anchor="center")
-dibujar_rectangulo_redondeado(Contenedor_informes, 0, 0, 170, 85, r=10, color="#2A2B2A")
+ci_compras_peso = Contenedor_informes_compras_peso.create_text(85, 65, text="0 [KG]", fill="white", font=("Arial", 12, "bold"), anchor="center")
+compras_peso_img_original = Image.open("Img/Buys_Weight.png")  # Cambia la ruta por la de tu imagen
+compras_peso_img = ImageTk.PhotoImage(compras_peso_img_original)
+compras_peso_img_itm = Contenedor_informes_compras_peso.create_image(70, 5, image=compras_peso_img, anchor="nw")
 
 Contenedor_informes_stock = tk.Canvas(reports_page, width=360, height=83, highlightthickness=0, bg="#232323")
 Contenedor_informes_stock.place(x=320, y=515)
+dibujar_rectangulo_redondeado(Contenedor_informes_stock, 0, 0, 360, 83, r=10, color="#2A2B2A")
 Contenedor_informes_stock.create_text(180, 45, text="Stock", fill="white", font=("Arial", 12, "bold"), anchor="center")
-ci_stock = Contenedor_informes_stock.create_text(180, 65, text="0", fill="white", font=("Arial", 12, "bold"), anchor="center")
-dibujar_rectangulo_redondeado(Contenedor_informes, 0, 0, 360, 83, r=10, color="#2A2B2A")
+ci_stock = Contenedor_informes_stock.create_text(180, 65, text="0 [KG]", fill="white", font=("Arial", 12, "bold"), anchor="center")
+stock_img_original = Image.open("Img/Stock.png")  # Cambia la ruta por la de tu imagen
+stock_img = ImageTk.PhotoImage(stock_img_original)
+stock_img_itm = Contenedor_informes_stock.create_image(180, 20, image=stock_img, anchor="center")
 
 opcion_mes_informe = tk.StringVar()
 opcion_mes_informe.set("Seleccione un filtro") # Texto inicial filtro
@@ -2468,7 +2640,21 @@ menu_opcion_mes_informe = tk.OptionMenu(reports_page, opcion_mes_informe, *opcio
 menu_opcion_mes_informe.config(font=("Arial", 12), bg="#1F68A3", fg="white",highlightthickness=0)
 menu_opcion_mes_informe.place(x=335, y=222, width=330, height=40)
 
+grafico_compras_precio = tk.Canvas(reports_page, width=298, height=234, highlightthickness=0, bg="#232323")
+grafico_compras_precio.place(x=700, y=115)
+dibujar_rectangulo_redondeado(grafico_compras_precio, 0, 0, 298, 234, r=10, color="#2A2B2A")
 
+grafico_compras_peso = tk.Canvas(reports_page, width=298, height=234, highlightthickness=0, bg="#232323")
+grafico_compras_peso.place(x=700, y=364)
+dibujar_rectangulo_redondeado(grafico_compras_peso, 0, 0, 298, 234, r=10, color="#2A2B2A")
+
+grafico_ventas_precio = tk.Canvas(reports_page, width=298, height=234, highlightthickness=0, bg="#232323")
+grafico_ventas_precio.place(x=1013, y=115)
+dibujar_rectangulo_redondeado(grafico_ventas_precio, 0, 0, 298, 234, r=10, color="#2A2B2A")
+
+grafico_ventas_peso = tk.Canvas(reports_page, width=298, height=234, highlightthickness=0, bg="#232323")
+grafico_ventas_peso.place(x=1013, y=364)
+dibujar_rectangulo_redondeado(grafico_ventas_peso, 0, 0, 298, 234, r=10, color="#2A2B2A")
 
 opcion_producto_informe = tk.StringVar()
 opcion_producto_informe.set("Seleccione un filtro") # Texto inicial filtro
@@ -2485,7 +2671,6 @@ menu_opcion_producto_informe.place(x=335, y=162, width=330, height=40)
 # --- Vincular eventos ---
 opcion_mes_informe.trace_add("write", ejecutar_consulta)
 opcion_producto_informe.trace_add("write", ejecutar_consulta)
-
 create_database()
 actualizar_contenido()
 # Iniciar la actualización del reloj
