@@ -3,11 +3,16 @@ import sqlite3
 import os
 import shutil
 import pandas as pd
+from fpdf import FPDF
 from tkinter import ttk, messagebox, filedialog, Listbox, Scrollbar
 from datetime import datetime
 from PIL import Image, ImageTk  # Usado para cargar imágenes JPG/PNG
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 import matplotlib.pyplot as plt
+from reportlab.lib.pagesizes import letter
+from reportlab.pdfgen import canvas
+from reportlab.lib import colors
+from reportlab.platypus import Table, TableStyle
 
 root = tk.Tk()
 root.title("Sistema de Inventario")
@@ -583,14 +588,6 @@ def center_window(window):
     y = (screen_height - height) // 2
     window.geometry(f"{width}x{height}+{x}+{y}")
 
-def on_click():
-    print("¡Botón presionado!")
-
-def on_rectangle_click1(event):
-    # Verifica si el clic fue dentro del área del rectángulo
-    if 0 <= event.x <= 280 and 0 <= event.y <= 100:
-        on_click()
-
 def agregar_personas(campos_compras):
     try:
         # Obtener valores desde los campos_compras
@@ -787,6 +784,34 @@ def agregar_transaccion_ventas(campos_compras, productos_dict, clientes_dict):
         messagebox.showinfo("Éxito", "Venta registrada y stock actualizado.")
     except Exception as e:
         messagebox.showerror("Error", f"No se pudo registrar la transacción: {e}")
+
+def abrir_ventana_reportes():
+    ventana_reportes = tk.Toplevel(root)
+    ventana_reportes.title("Generar Reporte")
+    ventana_reportes.geometry("400x200")
+    ventana_reportes.configure(bg="#2A2B2A")
+
+    # Frame para las entradas
+    frame_entrada = tk.Frame(ventana_reportes)
+    frame_entrada.pack(pady=10)
+    frame_entrada.configure(bg="#2A2B2A")
+
+
+    # Menú desplegable para seleccionar producto
+    tk.Label(frame_entrada, text="Mes:", font=('Arial', 12), anchor="w", bg="#2A2B2A", fg="white").grid(row=2, column=0, padx=5, pady=5, sticky="w")
+    mes_seleccionado = tk.StringVar()
+    mes_seleccionado.set("Seleccionar un Mes")
+    mes_seleccionado_opciones = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"]
+    menu_mes = tk.OptionMenu(frame_entrada, mes_seleccionado, *mes_seleccionado_opciones)
+    menu_mes.grid(row=2, column=1, padx=5, pady=5)
+
+    # Botón para agregar producto
+    btn_agregar = tk.Button(frame_entrada, text="Aceptar", font=('Arial', 12), bg="#1F68A3", fg="white", command=lambda: generar_reporte_pdf(mes_seleccionado.get()))
+    btn_agregar.grid(row=9, column=0, columnspan=2, pady=(50,0))
+
+    # Botón para cerrar ventana
+    btn_cerrar = tk.Button(ventana_reportes, text="Cerrar", font=('Arial', 12), bg="#1F68A3", fg="white", command=lambda: ventana_reportes.destroy())
+    btn_cerrar.pack()
 
 def abrir_ventana_compras():
     ventana_compras = tk.Toplevel(root)
@@ -1768,6 +1793,149 @@ def crear_grafico_vacio(titulo, x, y):
 
     canvas_grafico.draw()
 
+def generar_reporte_pdf(mes):
+    try:
+        conn = sqlite3.connect(DB_NAME)
+        cursor = conn.cursor()
+
+        # Obtener el número del mes
+        meses_dict = {
+            "Enero": "01", "Febrero": "02", "Marzo": "03", "Abril": "04",
+            "Mayo": "05", "Junio": "06", "Julio": "07", "Agosto": "08",
+            "Septiembre": "09", "Octubre": "10", "Noviembre": "11", "Diciembre": "12"
+        }
+
+        if mes not in meses_dict:
+            messagebox.showerror("Error", "Mes inválido")
+            return
+
+        mes_numero = meses_dict[mes]
+
+        # Consulta SQL para obtener los datos
+        query = """
+        SELECT 
+            Transaccion.Fecha AS Fecha,
+            Productos.Nombre AS Producto,
+            SUM(CASE WHEN Accion = 'Venta' THEN Precio ELSE 0 END) AS Venta,
+            SUM(CASE WHEN Accion = 'Venta' THEN Transaccion.Cantidad ELSE 0 END) AS Peso_Ventas,
+            SUM(CASE WHEN Accion = 'Compra' THEN Precio ELSE 0 END) AS Compras,
+            SUM(CASE WHEN Accion = 'Compra' THEN Transaccion.Cantidad ELSE 0 END) AS Peso_Compras,
+            Productos.Cantidad AS Stock
+        FROM Transaccion 
+        INNER JOIN Productos ON Transaccion.Producto_ID = Productos.ID_Producto
+        WHERE SUBSTR(Transaccion.Fecha, 4, 2) = ?
+        GROUP BY Fecha, Producto
+        ORDER BY Fecha;
+        """
+        cursor.execute(query, (mes_numero,))
+        resultado = cursor.fetchall()
+
+        # Cerrar la conexión a la base de datos
+        cursor.close()
+        conn.close()
+
+        # Si no hay datos, mostrar un mensaje y salir
+        if not resultado:
+            messagebox.showinfo("Sin datos", "No hay transacciones para el mes seleccionado.")
+            return
+
+        # Crear DataFrame
+        df = pd.DataFrame(resultado, columns=["Fecha", "Producto", "Venta ($)", "Peso Ventas (Kg)", "Compra ($)", "Peso Compras (Kg)", "Stock"])
+
+        # Obtener métricas generales
+        total_ventas = df["Venta ($)"].sum()
+        total_compras = df["Compra ($)"].sum()
+        stock_total = df["Stock"].sum()
+
+        dia_mayor_ventas = df.loc[df["Venta ($)"].idxmax()]["Fecha"]
+        dia_mayor_compras = df.loc[df["Compra ($)"].idxmax()]["Fecha"]
+
+        # Agrupar por producto para obtener promedios
+        df_promedios = df.groupby("Producto")[["Venta ($)", "Peso Ventas (Kg)", "Compra ($)", "Peso Compras (Kg)"]].mean().reset_index()
+
+        # Solicitar nombre de archivo al usuario
+        fecha_actual = datetime.now().strftime("%d-%m-%Y")
+        nombre_predeterminado = f"Reporte_{mes}_{fecha_actual}.pdf"
+
+        archivo_destino = filedialog.asksaveasfilename(
+            defaultextension=".pdf",
+            filetypes=[("PDF Files", "*.pdf")],
+            title="Guardar reporte como",
+            initialfile=nombre_predeterminado
+        )
+
+        if not archivo_destino:
+            return  # Si el usuario cancela, salir
+
+        # Crear PDF
+        pdf = FPDF()
+        pdf.set_auto_page_break(auto=True, margin=15)
+        pdf.add_page()
+        pdf.set_font("Arial", "B", 16)
+        pdf.cell(200, 10, f"Reporte de Inventario - {mes}", ln=True, align="C")
+        pdf.ln(10)
+
+        # Agregar métricas generales
+        pdf.set_font("Arial", "", 12)
+        pdf.cell(0, 10, f"Día con mayor ventas: {dia_mayor_ventas}", ln=True)
+        pdf.cell(0, 10, f"Día con mayor compras: {dia_mayor_compras}", ln=True)
+        pdf.cell(0, 10, f"Total de ventas: ${total_ventas:,.2f}", ln=True)
+        pdf.cell(0, 10, f"Total de compras: ${total_compras:,.2f}", ln=True)
+        pdf.cell(0, 10, f"Stock total: {stock_total} KG", ln=True)
+        pdf.ln(10)
+
+        # Agregar tabla de productos
+        pdf.set_font("Arial", "B", 12)
+        pdf.cell(0, 10, "Ventas y Compras por Producto", ln=True)
+        pdf.set_font("Arial", "", 10)
+        pdf.cell(20, 10, "Fecha", border=1)
+        pdf.cell(30, 10, "Producto", border=1)
+        pdf.cell(30, 10, "Ventas ($)", border=1)
+        pdf.cell(30, 10, "Peso Ventas", border=1)
+        pdf.cell(30, 10, "Compras ($)", border=1)
+        pdf.cell(30, 10, "Peso Compras", border=1)
+        pdf.cell(20, 10, "Stock", border=1)
+        pdf.ln()
+
+        for _, row in df.iterrows():
+            pdf.cell(20, 10, str(row["Fecha"]), border=1)
+            pdf.cell(30, 10, str(row["Producto"]), border=1)
+            pdf.cell(30, 10, f"${row['Venta ($)']:,.2f}", border=1)
+            pdf.cell(30, 10, f"{row['Peso Ventas (Kg)']} KG", border=1)
+            pdf.cell(30, 10, f"${row['Compra ($)']:,.2f}", border=1)
+            pdf.cell(30, 10, f"{row['Peso Compras (Kg)']} KG", border=1)
+            pdf.cell(20, 10, f"{row['Stock']} KG", border=1)
+            pdf.ln()
+
+        pdf.ln(10)
+
+        # Agregar tabla de promedios
+        pdf.set_font("Arial", "B", 12)
+        pdf.cell(0, 10, "Promedios de Ventas y Compras", ln=True)
+        pdf.set_font("Arial", "", 10)
+        pdf.cell(30, 10, "Producto", border=1)
+        pdf.cell(40, 10, "Venta Promedio", border=1)
+        pdf.cell(40, 10, "Peso Venta Prom.", border=1)
+        pdf.cell(40, 10, "Compra Promedio", border=1)
+        pdf.cell(40, 10, "Peso Compra Prom.", border=1)
+        pdf.ln()
+
+        for _, row in df_promedios.iterrows():
+            pdf.cell(30, 10, str(row["Producto"]), border=1)
+            pdf.cell(40, 10, f"${row['Venta ($)']:,.2f}", border=1)
+            pdf.cell(40, 10, f"{row['Peso Ventas (Kg)']} KG", border=1)
+            pdf.cell(40, 10, f"${row['Compra ($)']:,.2f}", border=1)
+            pdf.cell(40, 10, f"{row['Peso Compras (Kg)']} KG", border=1)
+            pdf.ln()
+
+        # Guardar el PDF
+        pdf.output(archivo_destino)
+
+        # Mostrar mensaje de éxito
+        messagebox.showinfo("Éxito", "Reporte generado y guardado correctamente.")
+
+    except Exception as e:
+        messagebox.showerror("Error", f"No se pudo generar el reporte: {e}")
 # Canvas 1: Barra superior
 canvas1 = tk.Canvas(root, width=1340, height=70, highlightthickness=0, bg="#292B2B")
 canvas1.place(x=0, y=0)
@@ -2182,11 +2350,11 @@ generarrepportes.config(cursor="hand2")  # Cursor estilo "manito"
 generarrepportes1.config(cursor="hand2")  # Cursor estilo "manito"
 
 # Asociar el clic sobre el client_btn con la función del rectángulo
-generarrepportes.tag_bind(securitycopy_rectangulo, "<Button-1>", lambda e: on_click())
-generarrepportes1.tag_bind(securitycopy_rectangulo1, "<Button-1>", lambda e: on_click())
-generarrepportes1.tag_bind(securitycopy_img1, "<Button-1>", lambda e: on_click())
-generarrepportes.tag_bind(texto_canvas_generarrepportes, "<Button-1>", lambda e: on_click())
-generarrepportes.tag_bind(titulo_canvas_generarrepportes, "<Button-1>", lambda e: on_click())
+generarrepportes.tag_bind(securitycopy_rectangulo, "<Button-1>", lambda e: abrir_ventana_reportes())
+generarrepportes1.tag_bind(securitycopy_rectangulo1, "<Button-1>", lambda e: abrir_ventana_reportes())
+generarrepportes1.tag_bind(securitycopy_img1, "<Button-1>", lambda e: abrir_ventana_reportes())
+generarrepportes.tag_bind(texto_canvas_generarrepportes, "<Button-1>", lambda e: abrir_ventana_reportes())
+generarrepportes.tag_bind(titulo_canvas_generarrepportes, "<Button-1>", lambda e: abrir_ventana_reportes())
 
 # Canvas 5: Botoneras
 exportbd = tk.Canvas(config_page, width=280, height=100, highlightthickness=0, bg="#232323")
