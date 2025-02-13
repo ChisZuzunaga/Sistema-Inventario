@@ -548,8 +548,10 @@ def get_utilidad():
         # Obtener el conteo de vendedores
         conteo_utilidad = resultado[0]
 
-        # Actualizar el texto del canvas
-        utility_btn.itemconfig(texto_canvas, text=f"${conteo_utilidad}")
+        if conteo_utilidad == None:
+            utility_btn.itemconfig(texto_canvas, text="$ 0")
+        else:
+            utility_btn.itemconfig(texto_canvas, text=f"${conteo_utilidad}")
 
         # Cerrar conexión
         conn.close()
@@ -725,7 +727,7 @@ def agregar_transaccion_compras(campos_compras, productos_dict, proveedores_dict
         """, (proveedor_rut, producto_id, accion, cantidad, precio))
 
         # Actualizar el stock en la tabla Producto
-        cursor.execute("UPDATE Productos SET Cantidad = ? WHERE ID_Producto = ?", (nuevo_stock, producto_id))
+        cursor.execute("UPDATE Productos SET Cantidad = ?, Estado = ? WHERE ID_Producto = ?", (nuevo_stock, "Disponible", producto_id))
         
         # Guardar cambios y cerrar conexión
         conn.commit()
@@ -776,7 +778,10 @@ def agregar_transaccion_ventas(campos_compras, productos_dict, clientes_dict):
         
         # Actualizar stock del producto
         cursor.execute("UPDATE Productos SET Cantidad = ? WHERE ID_Producto = ?", (nuevo_stock, producto_id))
-
+        print(stock_actual, cantidad)
+        if stock_actual == cantidad:
+            cursor.execute("UPDATE Productos SET Estado = ? WHERE ID_Producto = ?", ("No Disponible", producto_id))
+         
         # Guardar cambios y cerrar conexión
         conn.commit()
         conn.close()
@@ -1176,9 +1181,15 @@ def actualizar_registro():
     # Actualizar el registro correspondiente en la base de datos
     conexion = sqlite3.connect(DB_NAME)
     cursor = conexion.cursor()
+
     cursor.execute("""
         UPDATE Productos SET Nombre = ?, Cantidad = ?, Estado = ?, Tipo = ? WHERE ID_Producto = ?
     """, (nombre, cantidad, estado, tipo, id_producto))
+
+    if cantidad == "0":
+        cursor.execute("UPDATE Productos SET Estado = ? WHERE ID_Producto = ?", ("No Disponible", id_producto))
+    else:
+        cursor.execute("UPDATE Productos SET Estado = ? WHERE ID_Producto = ?", ("Disponible", id_producto))
     conexion.commit()
     conexion.close()
 
@@ -1505,7 +1516,7 @@ def agregar_nueva_transaccion():
     elif accion == "Compra":
         # Aumentar stock al realizar una compra
         nuevo_stock = stock_actual + cantidad
-        cursor.execute("UPDATE Productos SET Cantidad = ? WHERE ID_Producto = ?", (nuevo_stock, id_producto))
+        cursor.execute("UPDATE Productos SET Cantidad = ?, Estado = ? WHERE ID_Producto = ?", (nuevo_stock, "Disponible", id_producto))
 
     # Insertar la transacción solo si pasa las validaciones
     cursor.execute("INSERT INTO Transaccion (ID_Transaccion, Persona_ID, Producto_ID, Fecha, Accion, Cantidad, Precio) VALUES (?, ?, ?, ?, ?, ?, ?)",
@@ -1519,6 +1530,7 @@ def agregar_nueva_transaccion():
     limpiar_campos_transacciones()
     mostrar_transacciones()
     actualizar_contenido()
+    tk.messagebox.showinfo("Éxito", "La transacción se ha añadido correctamente.")
 
 def actualizar_registro_transaccion():
     # Obtener los datos del formulario
@@ -1526,20 +1538,63 @@ def actualizar_registro_transaccion():
     id_persona = input_transacciones_id_persona.get()
     id_producto = input_transacciones_id_producto.get()
     fecha = input_transacciones_fecha.get()
-    estado = option_transacciones_estado.get()
-    cantidad = input_transacciones_cantidad.get()
+    nueva_accion = option_transacciones_estado.get()  # "Venta" o "Compra"
+    nueva_cantidad = int(input_transacciones_cantidad.get())
     precio = input_transacciones_precio.get()
 
-    if not id_transaccion or not id_persona or not id_producto or not fecha or not estado or not cantidad or precio == "Elige una Acción":
+    if not id_transaccion or not id_persona or not id_producto or not fecha or not nueva_accion or not nueva_cantidad or precio == "Elige una Acción":
         tk.messagebox.showwarning("Campos incompletos", "Por favor, complete todos los campos.")
         return  # No proceder si algún campo está vacío
 
-    # Actualizar el registro correspondiente en la base de datos
+    # Conectar con la base de datos
     conexion = sqlite3.connect(DB_NAME)
     cursor = conexion.cursor()
+
+    # Obtener los valores antiguos de la transacción
+    cursor.execute("SELECT Producto_ID, Accion, Cantidad FROM Transaccion WHERE ID_Transaccion = ?", (id_transaccion,))
+    resultado = cursor.fetchone()
+
+    if not resultado:
+        tk.messagebox.showerror("Error", "No se encontró la transacción en la base de datos.")
+        conexion.close()
+        return
+
+    id_producto_anterior, accion_anterior, cantidad_anterior = resultado
+
+    # Obtener el stock actual del producto
+    cursor.execute("SELECT Cantidad FROM Productos WHERE ID_Producto = ?", (id_producto,))
+    stock_actual = cursor.fetchone()[0]
+
+    # **Revertir el impacto de la transacción anterior en el stock**
+    if accion_anterior == "Venta":
+        stock_actual += cantidad_anterior  # Se devuelve la cantidad al stock
+    elif accion_anterior == "Compra":
+        stock_actual -= cantidad_anterior  # Se resta la cantidad del stock
+
+    # **Aplicar la nueva acción en el stock**
+    if nueva_accion == "Venta":
+        if stock_actual < nueva_cantidad:
+            tk.messagebox.showerror("Error", "Stock insuficiente para la venta.")
+            conexion.close()
+            return
+        if stock_actual == nueva_cantidad:
+            cursor.execute("UPDATE Productos SET Estado = ? WHERE ID_Producto = ?", ("No Disponible", id_producto))
+        stock_actual -= nueva_cantidad  # Reducir stock en una venta
+    elif nueva_accion == "Compra":
+        stock_actual += nueva_cantidad  # Aumentar stock en una compra
+        cursor.execute("UPDATE Productos SET Estado = ? WHERE ID_Producto = ?", ("Disponible", id_producto))
+
+    # **Actualizar la transacción**
     cursor.execute("""
-        UPDATE Transaccion SET Persona_ID = ?, Producto_ID = ?, Fecha = ?, Accion = ?, Cantidad = ?, Precio = ? WHERE ID_Transaccion = ?
-    """, (id_persona, id_producto, fecha, estado, cantidad, precio, id_transaccion))
+        UPDATE Transaccion 
+        SET Persona_ID = ?, Producto_ID = ?, Fecha = ?, Accion = ?, Cantidad = ?, Precio = ? 
+        WHERE ID_Transaccion = ?
+    """, (id_persona, id_producto, fecha, nueva_accion, nueva_cantidad, precio, id_transaccion))
+
+    # **Actualizar el stock en la tabla Productos**
+    cursor.execute("UPDATE Productos SET Cantidad = ? WHERE ID_Producto = ?", (stock_actual, id_producto))
+
+    # Guardar cambios en la base de datos
     conexion.commit()
     conexion.close()
 
@@ -1547,17 +1602,52 @@ def actualizar_registro_transaccion():
     limpiar_campos_transacciones()
     mostrar_transacciones()
     actualizar_contenido()
+    tk.messagebox.showinfo("Éxito", "La transacción se ha actualizado correctamente.")
 
 def eliminar_registro_transaccion():
-    # Obtener la ID del producto que se va a eliminar
+    # Obtener la ID de la transacción
     id_transaccion = input_transacciones_id.get()
 
-    # Cambiar el estado de disponible a no disponible
+    if not id_transaccion:
+        tk.messagebox.showwarning("Error", "Debe seleccionar una transacción para eliminar.")
+        return
+
+    # Conectar a la base de datos
     conexion = sqlite3.connect(DB_NAME)
     cursor = conexion.cursor()
-    cursor.execute("""
-        DELETE FROM Transaccion WHERE Transaccion.ID_Transaccion = ? 
-    """, (id_transaccion,))
+
+    # Obtener los detalles de la transacción antes de eliminarla
+    cursor.execute("SELECT Producto_ID, Accion, Cantidad FROM Transaccion WHERE ID_Transaccion = ?", (id_transaccion,))
+    resultado = cursor.fetchone()
+
+    if not resultado:
+        tk.messagebox.showerror("Error", "No se encontró la transacción en la base de datos.")
+        conexion.close()
+        return
+
+    id_producto, accion, cantidad = resultado
+
+    # Obtener el stock actual del producto
+    cursor.execute("SELECT Cantidad FROM Productos WHERE ID_Producto = ?", (id_producto,))
+    stock_actual = cursor.fetchone()[0]
+
+    # Ajustar el stock según la acción de la transacción eliminada
+    if accion == "Venta":
+        stock_actual += cantidad  # Devolver stock si era una venta
+    elif accion == "Compra":
+        if stock_actual - cantidad < 0:
+            tk.messagebox.showerror("Error", "No se puede eliminar la transacción, dejaría stock negativo.")
+            conexion.close()
+            return
+        stock_actual -= cantidad  # Restar stock si era una compra
+
+    # Eliminar la transacción
+    cursor.execute("DELETE FROM Transaccion WHERE ID_Transaccion = ?", (id_transaccion,))
+
+    # Actualizar el stock en la tabla Productos
+    cursor.execute("UPDATE Productos SET Cantidad = ? WHERE ID_Producto = ?", (stock_actual, id_producto))
+
+    # Confirmar cambios en la base de datos
     conexion.commit()
     conexion.close()
 
@@ -1565,6 +1655,7 @@ def eliminar_registro_transaccion():
     limpiar_campos_transacciones()
     mostrar_transacciones()
     actualizar_contenido()
+    tk.messagebox.showinfo("Éxito", "La transacción se eliminó correctamente y el stock fue actualizado.")
 
 def limpiar_campos_transacciones():
     # Limpiar todos los campos de entrada
@@ -2727,8 +2818,8 @@ tabla_transacciones.heading("Persona_ID", text="Rut")
 tabla_transacciones.heading("Producto_ID", text="Producto")
 tabla_transacciones.heading("Fecha", text="Fecha")
 tabla_transacciones.heading("Accion", text="Accion")
-tabla_transacciones.heading("Cantidad", text="Cantidad")
-tabla_transacciones.heading("Precio", text="Precio")
+tabla_transacciones.heading("Cantidad", text="Cantidad [KG]")
+tabla_transacciones.heading("Precio", text="Precio $")
 
 tabla_transacciones.column("ID_Transaccion", width=50, anchor="center", stretch=False)  
 tabla_transacciones.column("Persona_ID", width=100, anchor="w", stretch=True)  
@@ -2751,7 +2842,7 @@ dibujar_rectangulo_redondeado(Contenedor_informes, 0, 0, 360, 170, r=10, color="
 Contenedor_Texto_informes = tk.Canvas(reports_page, width=310, height=36, highlightthickness=0, bg="#2A2B2A")
 Contenedor_Texto_informes.place(x=345, y=100)
 Contenedor_Texto_informes_Info = dibujar_rectangulo_redondeado(Contenedor_Texto_informes, 0, 0, 310, 36, r=10, color="#393A3A")
-Contenedor_Texto_informes.create_text(155, 18, text="Detalles de Transacciones", fill="white", font=("Arial", 16), anchor="center")
+Contenedor_Texto_informes.create_text(155, 18, text="Detalles de Reportes", fill="white", font=("Arial", 16), anchor="center")
 
 Contenedor_informes_ventas_precio = tk.Canvas(reports_page, width=170, height=85, highlightthickness=0, bg="#232323")
 Contenedor_informes_ventas_precio.place(x=320, y=305)
