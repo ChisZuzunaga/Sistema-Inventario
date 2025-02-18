@@ -811,7 +811,7 @@ def abrir_ventana_reportes():
     menu_mes.grid(row=2, column=1, padx=5, pady=5)
 
     # Botón para agregar producto
-    btn_agregar = tk.Button(frame_entrada, text="Aceptar", font=('Arial', 12), bg="#1F68A3", fg="white", command=lambda: generar_reporte_pdf(mes_seleccionado.get()))
+    btn_agregar = tk.Button(frame_entrada, text="Aceptar", font=('Arial', 12), bg="#1F68A3", fg="white", command=lambda: (generar_reporte_pdf(mes_seleccionado.get()), ventana_reportes.destroy()))
     btn_agregar.grid(row=9, column=0, columnspan=2, pady=(50,0))
 
     # Botón para cerrar ventana
