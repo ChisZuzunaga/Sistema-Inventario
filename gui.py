@@ -29,6 +29,9 @@ DB_ORIGINAL = "productos.db"
 # Conectar con la base de datos
 DB_NAME = "productos.db"
 
+# Logo
+Logo = "Img/Img-9.png"
+
 conexion = sqlite3.connect(DB_NAME)
 cursor = conexion.cursor()
 
@@ -2121,7 +2124,7 @@ canvas2.tag_bind("config_clickable", "<Leave>", lambda e: canvas2.config(cursor=
 canvas2.tag_bind("config_clickable", "<Button-1>", lambda e: mostrar_pestaña("configuracion"))
 
 
-proveedores_imgA = Image.open("Img/Img-9.png")  # Cambia la ruta por la de tu imagen
+proveedores_imgA = Image.open(Logo)  # Cambia la ruta por la de tu imagen
 proveedores_photoA = ImageTk.PhotoImage(proveedores_imgA)
 canva2_logo = canvas2.create_image(150, 80, image=proveedores_photoA)
 canvas2.image = proveedores_photoA
