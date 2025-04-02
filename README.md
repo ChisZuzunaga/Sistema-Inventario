@@ -46,6 +46,7 @@ Una vez generado, el archivo ejecutable estará en la carpeta dist/ y podrás ej
  ├── 📂 Img                     # Imágenes de los productos  
  ├── 📂 Copias-De-Seguridad     # Carpeta de backups automáticos  
  ├── 📜 gui.py                  # Archivo principal con la interfaz gráfica  
+ ├── 📜 database.py             # Archivo con funciones para la gestión de la Base de datos.
  ├── 📜 productos.db            # Base de datos SQLite  
  ├── 📜 README.md               # Documento con información del proyecto  
  ├── 📜 icon.ico                # Icono de la aplicación  
